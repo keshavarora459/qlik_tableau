@@ -58,7 +58,41 @@ def _fire_and_forget(coro) -> None:
     """
     task = asyncio.ensure_future(coro)
     _BACKGROUND_TASKS.add(task)
-    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+
+def _deduplicate_measures(measures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Return the measures list with all duplicate names removed.
+
+    Deduplication key: measure name (case-insensitive, stripped).
+    First occurrence wins.  If two entries share a name but have different
+    DAX expressions a warning is logged so the conflict is visible in the
+    server log, but only the first entry is kept — the semantic model import
+    will fail if two measures with identical names are submitted.
+    """
+    seen: Dict[str, Dict[str, Any]] = {}
+    result: List[Dict[str, Any]] = []
+    for m in measures or []:
+        name = (m.get("name") or "").strip()
+        key = name.lower()
+        if not key:
+            result.append(m)
+            continue
+        if key in seen:
+            existing_dax = (seen[key].get("dax_expression") or seen[key].get("fabric", {}).get("dax_expression") or "").strip()
+            incoming_dax = (m.get("dax_expression") or m.get("fabric", {}).get("dax_expression") or "").strip()
+            if existing_dax != incoming_dax:
+                logger.warning(
+                    "Duplicate measure name conflict: '%s' already exists with a different DAX expression. "
+                    "Keeping the first occurrence and discarding the duplicate. "
+                    "Existing DAX: %r  Incoming DAX: %r",
+                    name, existing_dax[:120], incoming_dax[:120],
+                )
+            else:
+                logger.debug("Dropping identical duplicate measure: '%s'", name)
+            continue  # skip this duplicate regardless
+        seen[key] = m
+        result.append(m)
+    return result
 
 
 class CoordinatorAgent(ConversableAgent):
@@ -891,7 +925,7 @@ class CoordinatorAgent(ConversableAgent):
             "status": "success", "message": "Mapping completed successfully", "error_message": None,
             "contract_version": "2.0", "summary": parsing_summary, "workbook_metadata": workbook_meta, "app_layout": app_layout,
             "app_metadata": app_meta, "datasources": datasources_formatted, "connections": connections, "tables": tables,
-            "relationships": relationships, "measures": measures, "dimensions": dimensions,
+            "relationships": relationships, "measures": _deduplicate_measures(measures), "dimensions": dimensions,
             "calculated_columns": data.get("calculated_columns", []), "custom_sql": data.get("custom_sql", []),
             "visuals": visuals_struct, "filters": filters,
             "limitations": [], "variables": converted_variables,

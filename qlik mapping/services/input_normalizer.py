@@ -91,10 +91,27 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
 
 
 def normalize_measures(raw: Any) -> List[Dict[str, Any]]:
-    """Accept a list, or a {"measures": [...]} wrapper, and flatten each item."""
+    """Accept a list, or a {"measures": [...]} wrapper, and flatten each item.
+
+    Deduplicates by measure name (case-insensitive, first occurrence wins) so
+    that a measure appearing more than once in the Qlik parsing output never
+    produces duplicate entries in the conversion pipeline.
+    """
     if isinstance(raw, dict):
         raw = raw.get("measures", [])
-    return [m for m in (normalize_measure(item) for item in _as_list(raw)) if m]
+    seen: Dict[str, bool] = {}
+    result = []
+    for item in _as_list(raw):
+        m = normalize_measure(item)
+        if not m:
+            continue
+        key = m.get("name", "").strip().lower()
+        if key and key in seen:
+            continue  # skip duplicate
+        if key:
+            seen[key] = True
+        result.append(m)
+    return result
 
 
 def normalize_dimension(raw: Any) -> Dict[str, Any]:
