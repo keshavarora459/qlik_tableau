@@ -23,7 +23,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from .confidence_evaluator import ConfidenceEvaluator
-from .dax_identifiers import IDENTIFIER, RESERVED, SINGLE_QUOTED
+from .dax_identifiers import IDENTIFIER, RESERVED, SINGLE_QUOTED, DOUBLE_QUOTED, QUALIFIED_REF
 
 # Any already-bracketed reference: a measure alias like [Total Cost], or a
 # column reference the caller already qualified. Protected wholesale during
@@ -84,31 +84,30 @@ class DAXConverter:
         if not expr:
             return ""
 
-        literals: List[str] = []
-
-        def stash(match: re.Match) -> str:
-            literals.append(match.group(1))
-            return f"\x00{len(literals) - 1}\x00"
-
-        working = SINGLE_QUOTED.sub(stash, expr)
-
         qualified_refs: List[str] = []
 
         def stash_qualified(match: re.Match) -> str:
             qualified_refs.append(match.group(0))
             return f"\x02{len(qualified_refs) - 1}\x02"
 
-        # Stash already qualified references like 'Table'[Column] or "Table"[Column]
-        # so we don't accidentally re-process their inner bracketed parts.
-        working = re.sub(r"(?:'[^']*'|\"[^\"]*\")\[[^\]\[]*\]", stash_qualified, working)
+        working = QUALIFIED_REF.sub(stash_qualified, expr)
+
+        literals: List[str] = []
+
+        def stash_literal(match: re.Match) -> str:
+            literals.append(match.group(0))
+            return f"\x00{len(literals) - 1}\x00"
+
+        working = DOUBLE_QUOTED.sub(stash_literal, working)
+        working = SINGLE_QUOTED.sub(stash_literal, working)
 
         brackets: List[str] = []
 
         def stash_bracket(match: re.Match) -> str:
             token = match.group(0)
             inner = token[1:-1]
-            if inner in index:
-                table = index[inner]
+            if inner.lower() in index:
+                table = index[inner.lower()]
                 resolved_token = f"'{table}'[{inner}]"
                 self.column_mapping[inner] = {
                     "table": table,
@@ -133,9 +132,9 @@ class DAXConverter:
 
         def qualify(match: re.Match) -> str:
             token = match.group(1)
-            if token.lower() in SYNTAX_KEYWORDS:
+            if token.lower() in SYNTAX_KEYWORDS or token.startswith("__CalcVar_"):
                 return token
-            table = index.get(token)
+            table = index.get(token.lower())
             if table:
                 resolved_token = f"'{table}'[{token}]"
                 self.column_mapping[token] = {
@@ -158,7 +157,7 @@ class DAXConverter:
             working = working.replace(f"\x02{position}\x02", qref)
 
         for position, literal in enumerate(literals):
-            working = working.replace(f"\x00{position}\x00", f"'{literal}'")
+            working = working.replace(f"\x00{position}\x00", literal)
         return working
 
     def qlik_to_dax(
@@ -184,6 +183,33 @@ class DAXConverter:
 
         # Qlik Num() formatting wrapper must be stripped before processing expressions
         dax, self.last_format, _ = strip_num(str(qlik_expr).strip())
+
+        # 0. Translate Qlik $() expressions into DAX VAR
+        from .variable_expander import _find_expansions
+        spans = _find_expansions(dax)
+        self.unconverted_qlik_syntax = getattr(self, 'unconverted_qlik_syntax', [])
+        
+        dax_vars = []
+        if spans:
+            for i, (start, end, inner) in enumerate(sorted(spans, key=lambda s: s[0], reverse=True)):
+                token = inner.strip()
+                if token.startswith("="):
+                    calc_expr = token[1:].strip()
+                    sub_converter = DAXConverter()
+                    converted_inner = sub_converter.qlik_to_dax(calc_expr, known_tables, relationships)
+                    self.unresolved_columns.extend(sub_converter.unresolved_columns)
+                    self.column_mapping.update(sub_converter.column_mapping)
+                    self.function_mapping.update(sub_converter.function_mapping)
+                    
+                    var_name = f"__CalcVar_{len(spans)-i}"
+                    dax_vars.insert(0, (var_name, converted_inner))
+                    dax = dax[:start] + var_name + dax[end:]
+                else:
+                    name = token.strip()
+                    paren = name.find("(")
+                    if paren != -1 and name.endswith(")"):
+                        name = name[:paren].strip()
+                    self.unconverted_qlik_syntax.append(f"$({name})")
 
         # 1. Translate Qlik Match, Pick and ApplyMap constructs
         dax, changed = translate_match(dax)
@@ -218,12 +244,21 @@ class DAXConverter:
         dax = self.qualify_columns(dax, index)
 
         # 6. Aggr and Top-level divide
-        dax, _ = translate_aggr(dax, table_resolver, known_tables, relationships)
+        dax, aggr_changed = translate_aggr(dax, table_resolver, known_tables, relationships)
+        if aggr_changed:
+            self.function_mapping["AGGR"] = "SUMX/AVERAGEX/MAXX/MINX/SUMMARIZE as appropriate"
         dax = self._to_divide(dax)
 
         # 7. Sanitize empty or malformed table prefixes
         dax = re.sub(r"'\s*'\[([^\]]+)\]", r"[\1]", dax)
         dax = re.sub(r"''\[([^\]]+)\]", r"[\1]", dax)
+
+        if dax_vars:
+            var_lines = []
+            for var_name, var_expr in dax_vars:
+                var_lines.append(f"VAR {var_name} = {var_expr}")
+            var_lines.append(f"RETURN {dax}")
+            dax = "\n".join(var_lines)
 
         return dax
 
@@ -234,7 +269,7 @@ class DAXConverter:
         qualified = re.match(r"'([^']+)'\[", reference)
         if qualified:
             return qualified.group(1)
-        return index.get(reference.strip("[]"))
+        return index.get(reference.strip("[]").lower())
 
     @staticmethod
     def _to_divide(dax: str) -> str:
@@ -292,8 +327,10 @@ class DAXConverter:
             if fname in BANNED_FUNCTIONS:
                 unconverted.append(fname)
         unconverted = sorted(list(set(unconverted)))
+        
+        unconverted_syntax = sorted(list(set(getattr(self, 'unconverted_qlik_syntax', []))))
 
-        if self.unresolved_columns or unconverted:
+        if self.unresolved_columns or unconverted or unconverted_syntax:
             conversion_status = "failed"
         else:
             conversion_status = "converted"
@@ -306,6 +343,7 @@ class DAXConverter:
             "conversion_status": conversion_status,
             "unresolved_columns": list(set(self.unresolved_columns)),
             "unconverted_qlik_functions": unconverted,
+            "unconverted_qlik_syntax": unconverted_syntax,
             "column_mapping": dict(self.column_mapping),
             "function_mapping": dict(self.function_mapping),
             "qlik_number_format": qfmt,

@@ -34,6 +34,30 @@ def _first(*values: Any) -> Any:
     return None
 
 
+import re
+import hashlib
+
+def _sanitize_name(name: Any, fallback: str = "Item") -> str:
+    """Ensure name is valid for Fabric/Power BI (length < 100, no illegal chars)."""
+    name_str = str(name).strip() if name else ""
+    if not name_str:
+        return fallback
+    
+    # Remove newlines, brackets, and characters illegal in Analysis Services object names
+    clean = re.sub(r'[\r\n\t]', ' ', name_str)
+    # Power BI doesn't strictly ban all these, but keeping it alphanumeric+spaces prevents expression-name issues
+    clean = re.sub(r'[\\/\[\]|{}"<>]', '', clean).strip()
+    
+    if not clean:
+        clean = fallback
+        
+    if len(clean) > 80:
+        h = hashlib.md5(name_str.encode('utf-8')).hexdigest()[:6]
+        clean = clean[:70].strip() + "_" + h
+        
+    return clean
+
+
 def normalize_measure(raw: Any) -> Dict[str, Any]:
     """Flatten one measure to {name, expression, qlik_number_format, tables}."""
     raw = _as_dict(raw)
@@ -41,18 +65,20 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
     qmeta = _as_dict(raw.get("qMetaDef"))
     qinfo = _as_dict(raw.get("qInfo"))
 
-    name = _first(
+    raw_name = _first(
         raw.get("name"), raw.get("qlik_name"),
         qmeasure.get("qLabel"), qmeta.get("title"), qinfo.get("qId"),
     )
     expression = _first(
         raw.get("expression"), raw.get("qlik_expression"), qmeasure.get("qDef")
     )
-    if not name and not expression:
+    if not raw_name and not expression:
         return {}
 
+    name = _sanitize_name(raw_name or expression, "Measure")
+
     return {
-        "name": name or "Measure",
+        "name": name,
         "expression": expression or "",
         "qlik_number_format": _first(
             raw.get("qlik_number_format"), raw.get("number_format"),
@@ -79,7 +105,7 @@ def normalize_dimension(raw: Any) -> Dict[str, Any]:
     qinfo = _as_dict(raw.get("qInfo"))
 
     field_defs = _as_list(_first(raw.get("field_defs"), qdim.get("qFieldDefs")))
-    name = _first(
+    raw_name = _first(
         raw.get("name"), qdim.get("title"), qmeta.get("title"), qinfo.get("qId")
     )
 
@@ -87,8 +113,10 @@ def normalize_dimension(raw: Any) -> Dict[str, Any]:
     # Preserve pre-flattened expressions if the parsing result already carries them.
     expression = str(_first(raw.get("qlik_expression"), raw.get("expression"), field_defs[0] if field_defs else ""))
 
-    if not name and not expression and not field_defs:
+    if not raw_name and not expression and not field_defs:
         return {}
+        
+    name = _sanitize_name(raw_name or expression, "Dimension")
 
     is_calculated = bool(raw.get("is_calculated")) or expression.startswith("=")
     grouping = str(_first(raw.get("grouping"), qdim.get("qGrouping")) or "N")
@@ -104,7 +132,7 @@ def normalize_dimension(raw: Any) -> Dict[str, Any]:
         raise ValueError(f"Calculated dimension '{name}' with source expression silently produced an empty qlik_expression.")
 
     return {
-        "name": name or "Dimension",
+        "name": name,
         # The target contract strips the leading "=" from the expression.
         "qlik_expression": out_expression,
         "qlik_datatype": data_type,
@@ -145,13 +173,15 @@ def normalize_filter(raw: Any) -> Dict[str, Any]:
         raw.get("qDef") if isinstance(raw.get("qDef"), str) else None,
         field_defs[0] if field_defs else None,
     )
-    name = _first(raw.get("title"), raw.get("name"), qmeta.get("title"), raw.get("label"), field)
-    if not field and not name:
+    raw_name = _first(raw.get("title"), raw.get("name"), qmeta.get("title"), raw.get("label"), field)
+    if not field and not raw_name:
         return {}
+
+    name = _sanitize_name(raw_name, "Filter")
 
     field_str = str(field) if field is not None else None
     return {
-        "name": name or "Filter",
+        "name": name,
         "field": field_str.lstrip("=") if field_str and not field_str.startswith("=") else field_str,
         "sheet_name": _first(raw.get("sheet_name"), raw.get("source")),
     }

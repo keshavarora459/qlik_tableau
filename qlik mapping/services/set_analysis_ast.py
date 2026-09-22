@@ -477,7 +477,14 @@ class SetAnalysisDAXEmitter:
                 predicates.append(dax_pred)
 
         # Qualify inner expression
-        inner_qualified = self.qualify_field(inner) if re.match(r"^[A-Za-z0-9_]+$", inner) else inner
+        if inner.isdigit():
+            if agg in ("SUM", "COUNT"):
+                agg = "COUNTROWS"
+                inner_qualified = f"'{base_table}'" if base_table else "'Table'"
+            else:
+                inner_qualified = inner
+        else:
+            inner_qualified = self.qualify_field(inner) if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", inner) else inner
 
         if not predicates:
             return f"{agg}({inner_qualified})"

@@ -35,8 +35,8 @@ OUTER_TO_ITERATOR = {
 
 
 def _split_top_level(text: str, separator: str = ",") -> List[str]:
-    """Bracket- and quote-aware top level split."""
-    return split_top_level(text, separator=separator)
+    """Bracket- and quote-aware top level split, ignoring < and > as brackets."""
+    return split_top_level(text, separator=separator, open_chars="([{", close_chars=")]}")
 
 
 def translate_set_analysis(
@@ -133,7 +133,7 @@ def translate_aggr(
         iterator = OUTER_TO_ITERATOR.get(outer_name, "MAXX")
 
         # Scan from start of Aggr args to find Aggr's closing paren and outer's closing paren
-        aggr_start = expression.find("Aggr", start)
+        aggr_start = expression.lower().find("aggr", start)
         paren_start = expression.find("(", aggr_start)
         depth = 1
         curr = paren_start + 1
@@ -164,13 +164,28 @@ def translate_aggr(
             break
 
         inner, dimensions = parts[0].strip(), [p.strip() for p in parts[1:] if p.strip()]
-        table = _resolve_aggr_base_table(dimensions, inner, column_table, known_tables, relationships)
-        if not table:
-            # Fallback to dimension 0 table or 'Table'
-            table = column_table(dimensions[0]) or "Table"
-
-        grouping = ", ".join(dimensions)
-        replacement = f'{iterator}(SUMMARIZE(\'{table}\', {grouping}, "@value", {inner}), [@value])'
+        
+        dim_refs = []
+        for d in dimensions:
+            if re.match(r"^\'.*?\'\[.*?\]$", d) or re.match(r"^\[.*?\]$", d):
+                dim_refs.append(d)
+            else:
+                d_clean = d.strip("[]'\"")
+                tbl = column_table(d_clean)
+                if tbl:
+                    dim_refs.append(f"'{tbl}'[{d_clean}]")
+                else:
+                    dim_refs.append(f"[{d_clean}]")
+                
+        if len(dimensions) == 1:
+            grouping_table = f"VALUES({dim_refs[0]})"
+            replacement = f"{iterator}({grouping_table}, {inner})"
+        else:
+            table = _resolve_aggr_base_table(dimensions, inner, column_table, known_tables, relationships)
+            if not table:
+                table = column_table(dimensions[0].strip("[]'\"")) or "Table"
+            grouping = ", ".join(dim_refs)
+            replacement = f"{iterator}(SUMMARIZE('{table}', {grouping}), {inner})"
 
         expression = expression[:start] + replacement + expression[outer_end:]
         changed = True

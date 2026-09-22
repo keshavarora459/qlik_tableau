@@ -57,8 +57,8 @@ def build_column_index(known_tables: List[Dict[str, Any]]) -> Dict[str, str]:
                 or column.get("name")
                 or column.get("Name")
             )
-            if name and name not in index:
-                index[name] = table_name
+            if name and name.lower() not in index:
+                index[name.lower()] = table_name
     return index
 
 
@@ -85,7 +85,7 @@ def find_bare_columns(expr: str, index: Dict[str, str]) -> Dict[str, List[str]]:
         token = match.group(1)
         if token.lower() in DAX_FUNCTIONS_AND_KEYWORDS or token.isdigit():
             continue
-        if token in index:
+        if token.lower() in index:
             result["known_unqualified"].append(token)
         else:
             result["unresolved"].append(token)
