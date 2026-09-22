@@ -1,0 +1,11 @@
+{
+    "status": "error",
+    "message": "An error occurred during mapping",
+    "run_id": "11234",
+    "source_type": "tableau",
+    "mapping_result": {
+        "message": "Mapping failed with internal error.",
+        "reason": "Unable to connect to the database or downstream service. Please check the network connection and try again.",
+        "saved_at": "2026-09-21T06:04:46.962602"
+    }
+}

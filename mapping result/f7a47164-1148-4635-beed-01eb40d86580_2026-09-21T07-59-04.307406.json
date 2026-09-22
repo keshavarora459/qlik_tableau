@@ -1,0 +1,11 @@
+{
+    "status": "error",
+    "message": "An error occurred during mapping",
+    "run_id": "f7a47164-1148-4635-beed-01eb40d86580",
+    "source_type": "tableau",
+    "mapping_result": {
+        "message": "Mapping failed with internal error.",
+        "reason": "The requested resource was not found. Please verify the project, workbook, and run IDs.",
+        "saved_at": "2026-09-21T07:59:04.307406"
+    }
+}

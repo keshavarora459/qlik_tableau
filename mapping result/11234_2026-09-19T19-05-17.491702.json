@@ -1,0 +1,249 @@
+{
+    "status": "success",
+    "message": "Mapping processed successfully",
+    "run_id": "11234",
+    "source_type": "tableau",
+    "mapping_result": {
+        "status": "success",
+        "cosmos_db": {
+            "stored": false,
+            "error": "Circuit breaker OPEN for localhost:8081. Request rejected to prevent cascade failure."
+        },
+        "logs": {
+            "stored": true
+        },
+        "payload": {
+            "status": "success",
+            "message": "Mapping completed successfully",
+            "error_message": null,
+            "project_name": "Unknown",
+            "workbook_metadata": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "created_at": "2026-08-28T05:36:26.243983",
+                "name": "Unknown",
+                "version": "Unknown",
+                "source_build": "Unknown",
+                "file_type": "Unknown",
+                "site": "Unknown",
+                "timestamp": null
+            },
+            "datasources": [],
+            "tables": [],
+            "visuals": {
+                "sheet_visuals": [],
+                "dashboards": [],
+                "stories": []
+            },
+            "relationships": [
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "BILLS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "BILLS.Appointment Id (Bills)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "BILLS",
+                        "toColumn": "Appointment Id (Bills)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "DOCTORS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Doctor Id",
+                                "operator": "=",
+                                "right": "DOCTORS.Doctor Id (Doctors)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Doctor Id",
+                        "toTable": "DOCTORS",
+                        "toColumn": "Doctor Id (Doctors)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "PATIENTS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Patient Id",
+                                "operator": "=",
+                                "right": "PATIENTS.Patient Id (Patients)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Patient Id",
+                        "toTable": "PATIENTS",
+                        "toColumn": "Patient Id (Patients)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "TREATMENTS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "TREATMENTS.Appointment Id (Treatments)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "TREATMENTS",
+                        "toColumn": "Appointment Id (Treatments)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "APPOINTMENTS_VISIT_STATUS_FACT",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "APPOINTMENTS_VISIT_STATUS_FACT.APPOINTMENT_ID (Custom SQL Query1)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "APPOINTMENTS_VISIT_STATUS_FACT",
+                        "toColumn": "APPOINTMENT_ID (Custom SQL Query1)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "custom table",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "custom table.APPOINTMENT_ID (Custom SQL Query)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "custom table",
+                        "toColumn": "APPOINTMENT_ID (Custom SQL Query)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                }
+            ],
+            "measures": [],
+            "parameters": [],
+            "sets": [],
+            "custom_sql": [],
+            "Calculated Fields & LODs": [
+                {
+                    "calculated_fields": []
+                },
+                {
+                    "lod_expressions": []
+                }
+            ],
+            "formatting_and_styling": {},
+            "actions": [],
+            "embedded_assets": {},
+            "permissions": {},
+            "artifacts": {},
+            "security": {
+                "row_level_security": true,
+                "details": [
+                    {
+                        "type": "manual_calculation",
+                        "description": "RLS implemented using USERNAME() / ISMEMBEROF()",
+                        "calculations": [
+                            {
+                                "column_caption": "Doctor RLS Filter",
+                                "column_name": "[Calculation_0013498422951993]",
+                                "formula": "[EMAIL_ADDRESS] = USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "boolean",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            },
+                            {
+                                "column_caption": "Username",
+                                "column_name": "[Calculation_0013498428411962]",
+                                "formula": "USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "string",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            }
+                        ]
+                    }
+                ]
+            },
+            "llm_status": {
+                "calculated_fields_converted": true,
+                "reason": "Converted successfully"
+            },
+            "original_request_payload": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "run_id": "11234",
+                "skip_llm": false
+            }
+        },
+        "saved_at": "2026-09-19T19:05:17.491702"
+    }
+}

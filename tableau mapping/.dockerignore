@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables (Crucial to prevent leaking secrets into image)
+.env
+.env.*
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Logs
+*.log

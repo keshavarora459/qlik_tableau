@@ -1,0 +1,11 @@
+{
+    "status": "error",
+    "message": "An error occurred during mapping",
+    "run_id": "11234",
+    "source_type": "tableau",
+    "mapping_result": {
+        "message": "Mapping failed with internal error.",
+        "reason": "500: Workbook metadata missing",
+        "saved_at": "2026-09-19T18:47:30.364981"
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "status": "error",
+    "message": "An error occurred during mapping",
+    "run_id": "run-11",
+    "source_type": "qlik",
+    "mapping_result": {
+        "status": "error",
+        "message": "No parsing data found in MongoDB for run_id: run-11 or app_id: d70e3158-c8f5-4d63-a31d-53f2800aa80e",
+        "saved_at": "2026-09-21T06:39:57.412307"
+    }
+}

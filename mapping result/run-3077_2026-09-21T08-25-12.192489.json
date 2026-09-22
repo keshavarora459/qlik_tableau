@@ -1,0 +1,274 @@
+{
+    "status": "success",
+    "message": "Mapping processed successfully",
+    "run_id": "run-3077",
+    "source_type": "tableau",
+    "mapping_result": {
+        "status": "success",
+        "cosmos_db": {
+            "stored": true,
+            "message": "Results successfully stored in Cosmos DB"
+        },
+        "logs": {
+            "stored": true
+        },
+        "payload": {
+            "status": "success",
+            "message": "Mapping completed successfully",
+            "error_message": null,
+            "project_name": "Unknown",
+            "workbook_metadata": {
+                "project_id": "91d5bd09-a0ec-40af-93a2-95cd2b1ec358",
+                "workbook_id": "dcac9b34-7be9-4144-b182-6729e4d12793",
+                "created_at": null,
+                "name": "Unknown",
+                "version": "Unknown",
+                "source_build": "Unknown",
+                "file_type": "Unknown",
+                "site": "Unknown",
+                "timestamp": null
+            },
+            "datasources": [
+                {
+                    "id": "federated.0hq7nj30c897qj1eyekej0yhc1yw",
+                    "name": "Weather_Data (Weather_001)",
+                    "inline": true,
+                    "mode": "extract",
+                    "connection_type": "bigquery",
+                    "connections": [
+                        {
+                            "friendly_name": "BigQuery",
+                            "type": "bigquery",
+                            "server": "",
+                            "database": null,
+                            "schema": "Weather_001",
+                            "username": "support@dotnetit.com.au",
+                            "google_cloud_project_id": "ordinal-avatar-497006-v6",
+                            "port": null,
+                            "warehouse": null,
+                            "service": null,
+                            "tables": [
+                                "ordinal-avatar-497006-v6.Weather_001.Weather_Data"
+                            ]
+                        }
+                    ],
+                    "embedded_credentials": [
+                        {
+                            "connection_type": "bigquery",
+                            "username": "support@dotnetit.com.au",
+                            "authentication": "yes",
+                            "embed_password": false
+                        }
+                    ]
+                }
+            ],
+            "tables": [
+                {
+                    "datasource_id": "federated.0hq7nj30c897qj1eyekej0yhc1yw",
+                    "tableau_table_name": "Weather_Data",
+                    "bi_table_name": "Weather_Data",
+                    "schema_name": "[ordinal-avatar-497006-v6.Weather_001].[Weather_Data]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "City",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "City",
+                            "bi_column_name": "City",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "Date",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "Date",
+                            "bi_column_name": "Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "Record_Type",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Record_Type",
+                            "bi_column_name": "Record_Type",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "Temperature",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Temperature",
+                            "bi_column_name": "Temperature",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Temp_Min",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Temp_Min",
+                            "bi_column_name": "Temp_Min",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Temp_Max",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Temp_Max",
+                            "bi_column_name": "Temp_Max",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Precipitation",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Precipitation",
+                            "bi_column_name": "Precipitation",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Weather_Code",
+                            "tableau_datatype": "integer",
+                            "tableau_renamed_column_name": "Weather_Code",
+                            "bi_column_name": "Weather_Code",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Latitude",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Latitude",
+                            "bi_column_name": "Latitude",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Longitude",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Longitude",
+                            "bi_column_name": "Longitude",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "Observation_Time",
+                            "tableau_datatype": "datetime",
+                            "tableau_renamed_column_name": "Observation_Time",
+                            "bi_column_name": "Observation_Time",
+                            "bi_datatype": "Date/Time"
+                        }
+                    ]
+                }
+            ],
+            "visuals": {
+                "sheet_visuals": [],
+                "dashboards": [],
+                "stories": []
+            },
+            "relationships": [],
+            "measures": [
+                {
+                    "name": "30-Day High",
+                    "table": "error",
+                    "table_name": "error",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "MAX(\n    IF DATEDIFF('day', Date, TODAY()) <= 30 \n    THEN Temp_Max END\n)",
+                    "dax_formula": "-- ERROR: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m2pxs0ydeyk97s98cqfnhfcq` service tier `on_demand` on requests per day (RPD): Limit 25",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "30-Day Low",
+                    "table": "error",
+                    "table_name": "error",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "MIN(\n    IF DATEDIFF('day', Date, TODAY()) <= 30 \n    THEN Temp_Min END\n)",
+                    "dax_formula": "-- ERROR: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m2pxs0ydeyk97s98cqfnhfcq` service tier `on_demand` on requests per day (RPD): Limit 25",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "30-Day Avg",
+                    "table": "error",
+                    "table_name": "error",
+                    "tableau_datatype": "integer",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "INT(AVG(\n  IF DATEDIFF('day', Date, TODAY()) <= 30 \n  THEN Temperature \n  END\n))",
+                    "dax_formula": "-- ERROR: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m2pxs0ydeyk97s98cqfnhfcq` service tier `on_demand` on requests per day (RPD): Limit 25",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Change Percentage",
+                    "table": "error",
+                    "table_name": "error",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "(AVG(Temperature) - AVG(Temp_Min)) / ABS(AVG(Temp_Min)) * 100",
+                    "dax_formula": "-- ERROR: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m2pxs0ydeyk97s98cqfnhfcq` service tier `on_demand` on requests per day (RPD): Limit 25",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                }
+            ],
+            "parameters": [],
+            "sets": [],
+            "custom_sql": [],
+            "Calculated Fields & LODs": [
+                {
+                    "calculated_fields": []
+                },
+                {
+                    "lod_expressions": [
+                        {
+                            "name": "Highest Avg Temp",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "City",
+                                "Temp_Max"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "error",
+                            "tableau_formula": "{ FIXED City : AVG(Temp_Max) }",
+                            "dax_formula": "-- ERROR CONVERTING: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m0bxvs4cep8as167dr6jbj02` service tier `on_demand` on requests per day (RPD): Limit 25",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Lowest Avg Temp",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "City",
+                                "Temp_Min"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "error",
+                            "tableau_formula": "{ FIXED City : AVG(Temp_Min) }",
+                            "dax_formula": "-- ERROR CONVERTING: Groq 429 rate limit exceeded: Error code: 429 - {'error': {'message': 'Rate limit reached for model `groq/compound-mini` in organization `org_01m0bxvs4cep8as167dr6jbj02` service tier `on_demand` on requests per day (RPD): Limit 25",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        }
+                    ]
+                }
+            ],
+            "formatting_and_styling": {},
+            "actions": [],
+            "embedded_assets": {},
+            "permissions": {},
+            "artifacts": {},
+            "security": {
+                "row_level_security": false,
+                "details": null
+            },
+            "llm_status": {
+                "calculated_fields_converted": true,
+                "reason": "Converted successfully"
+            },
+            "original_request_payload": {
+                "project_id": "91d5bd09-a0ec-40af-93a2-95cd2b1ec358",
+                "workbook_id": "dcac9b34-7be9-4144-b182-6729e4d12793",
+                "run_id": "run-3077",
+                "skip_llm": false
+            }
+        },
+        "saved_at": "2026-09-21T08:25:12.192489"
+    }
+}

@@ -1,0 +1,1119 @@
+{
+    "status": "success",
+    "message": "Mapping processed successfully",
+    "run_id": "11234",
+    "source_type": "tableau",
+    "mapping_result": {
+        "status": "success",
+        "cosmos_db": {
+            "stored": true,
+            "message": "Results successfully stored in Cosmos DB"
+        },
+        "logs": {
+            "stored": true
+        },
+        "payload": {
+            "status": "success",
+            "message": "Mapping completed successfully",
+            "error_message": null,
+            "project_name": "Unknown",
+            "workbook_metadata": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "created_at": "2026-08-28T05:36:26.243983",
+                "name": "Unknown",
+                "version": "Unknown",
+                "source_build": "Unknown",
+                "file_type": "Unknown",
+                "site": "Unknown",
+                "timestamp": null
+            },
+            "datasources": [
+                {
+                    "id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "name": "APPOINTMENTS (SNOWFLAKE_LEARNING_DB.APPOINTMENTS)+ (RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3)",
+                    "inline": true,
+                    "mode": "live",
+                    "connection_type": "snowflake",
+                    "connections": [
+                        {
+                            "friendly_name": "mmcuiwz-kl31490.snowflakecomputing.com",
+                            "type": "snowflake",
+                            "server": "mmcuiwz-kl31490.snowflakecomputing.com",
+                            "database": "CITY_HOSPITAL",
+                            "schema": "PUBLIC",
+                            "username": "RAJANMORYA",
+                            "warehouse": "COMPUTE_WH",
+                            "port": null,
+                            "service": null,
+                            "tables": [
+                                "SNOWFLAKE_LEARNING_DB.RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3.APPOINTMENTS",
+                                "SNOWFLAKE_LEARNING_DB.RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3.BILLS",
+                                "SNOWFLAKE_LEARNING_DB.RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3.DOCTORS",
+                                "CITY_HOSPITAL.PUBLIC.PATIENTS",
+                                "SNOWFLAKE_LEARNING_DB.RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3.TREATMENTS"
+                            ]
+                        }
+                    ],
+                    "embedded_credentials": [
+                        {
+                            "connection_type": "snowflake",
+                            "username": "RAJANMORYA",
+                            "authentication": "Username Password",
+                            "embed_password": false
+                        }
+                    ]
+                }
+            ],
+            "tables": [
+                {
+                    "datasource_id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "tableau_table_name": "APPOINTMENTS",
+                    "bi_table_name": "APPOINTMENTS",
+                    "schema_name": "[SNOWFLAKE_LEARNING_DB].[RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3].[APPOINTMENTS]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "APPOINTMENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Appointment Id",
+                            "bi_column_name": "Appointment Id",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "PATIENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Patient Id",
+                            "bi_column_name": "Patient Id",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "DOCTOR_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Doctor Id",
+                            "bi_column_name": "Doctor Id",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "DEPARTMENT",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Department",
+                            "bi_column_name": "Department",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "APPOINTMENT_DATE",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "Appointment Date",
+                            "bi_column_name": "Appointment Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "APPOINTMENT_TIME",
+                            "tableau_datatype": "datetime",
+                            "tableau_renamed_column_name": "Appointment Time",
+                            "bi_column_name": "Appointment Time",
+                            "bi_datatype": "Date/Time"
+                        },
+                        {
+                            "tableau_column_name": "VISIT_STATUS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Visit Status",
+                            "bi_column_name": "Visit Status",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "REASON_FOR_VISIT",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Reason For Visit",
+                            "bi_column_name": "Reason For Visit",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "DIAGNOSIS_CODE",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Diagnosis Code",
+                            "bi_column_name": "Diagnosis Code",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "FOLLOW_UP_REQUIRED",
+                            "tableau_datatype": "boolean",
+                            "tableau_renamed_column_name": "Follow Up Required",
+                            "bi_column_name": "Follow Up Required",
+                            "bi_datatype": "True/False"
+                        }
+                    ]
+                },
+                {
+                    "datasource_id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "tableau_table_name": "BILLS",
+                    "bi_table_name": "BILLS",
+                    "schema_name": "[SNOWFLAKE_LEARNING_DB].[RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3].[BILLS]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "BILL_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Bill Id",
+                            "bi_column_name": "Bill Id",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "PATIENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Patient Id (Bills)",
+                            "bi_column_name": "Patient Id (Bills)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "APPOINTMENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Appointment Id (Bills)",
+                            "bi_column_name": "Appointment Id (Bills)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "TREATMENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Treatment Id",
+                            "bi_column_name": "Treatment Id",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "BILLING_DATE",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "Billing Date",
+                            "bi_column_name": "Billing Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "TOTAL_AMOUNT",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Total Amount",
+                            "bi_column_name": "Total Amount",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "INSURANCE_COVERED",
+                            "tableau_datatype": "integer",
+                            "tableau_renamed_column_name": "Insurance Covered",
+                            "bi_column_name": "Insurance Covered",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "PATIENT_PAYABLE",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Patient Payable",
+                            "bi_column_name": "Patient Payable",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "PAYMENT_METHOD",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Payment Method",
+                            "bi_column_name": "Payment Method",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "PAYMENT_STATUS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Payment Status",
+                            "bi_column_name": "Payment Status",
+                            "bi_datatype": "Text"
+                        }
+                    ]
+                },
+                {
+                    "datasource_id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "tableau_table_name": "DOCTORS",
+                    "bi_table_name": "DOCTORS",
+                    "schema_name": "[SNOWFLAKE_LEARNING_DB].[RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3].[DOCTORS]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "DOCTOR_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Doctor Id (Doctors)",
+                            "bi_column_name": "Doctor Id (Doctors)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "FULL_NAME",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Full Name",
+                            "bi_column_name": "Full Name",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "SPECIALIZATION",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Specialization",
+                            "bi_column_name": "Specialization",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "DEPARTMENT",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Department (Doctors)",
+                            "bi_column_name": "Department (Doctors)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "CONTACT_NUMBER",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Contact Number",
+                            "bi_column_name": "Contact Number",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "EMAIL_ADDRESS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Email Address",
+                            "bi_column_name": "Email Address",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "AVAILABILITY_DAYS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Availability Days",
+                            "bi_column_name": "Availability Days",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "CONSULTATION_FEE",
+                            "tableau_datatype": "integer",
+                            "tableau_renamed_column_name": "Consultation Fee",
+                            "bi_column_name": "Consultation Fee",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "EXPERIENCE_YEARS",
+                            "tableau_datatype": "integer",
+                            "tableau_renamed_column_name": "Experience Years",
+                            "bi_column_name": "Experience Years",
+                            "bi_datatype": "Decimal Number"
+                        },
+                        {
+                            "tableau_column_name": "REGISTRATION_NUMBER",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Registration Number",
+                            "bi_column_name": "Registration Number",
+                            "bi_datatype": "Text"
+                        }
+                    ]
+                },
+                {
+                    "datasource_id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "tableau_table_name": "PATIENTS",
+                    "bi_table_name": "PATIENTS",
+                    "schema_name": "[CITY_HOSPITAL].[PUBLIC].[PATIENTS]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "PATIENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Patient Id (Patients)",
+                            "bi_column_name": "Patient Id (Patients)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "FIRST_NAME",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "First Name",
+                            "bi_column_name": "First Name",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "LAST_NAME",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Last Name",
+                            "bi_column_name": "Last Name",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "DATE_OF_BIRTH",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Date Of Birth",
+                            "bi_column_name": "Date Of Birth",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "GENDER",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Gender",
+                            "bi_column_name": "Gender",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "CONTACT_NUMBER",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Contact Number (Patients)",
+                            "bi_column_name": "Contact Number (Patients)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "EMAIL_ADDRESS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Email Address (Patients)",
+                            "bi_column_name": "Email Address (Patients)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "ADDRESS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Address",
+                            "bi_column_name": "Address",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "INSURANCE_PROVIDER",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Insurance Provider",
+                            "bi_column_name": "Insurance Provider",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "INSURANCE_POLICY_NO",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Insurance Policy No",
+                            "bi_column_name": "Insurance Policy No",
+                            "bi_datatype": "Text"
+                        }
+                    ]
+                },
+                {
+                    "datasource_id": "federated.0ctg27804qk6sy1bahk3m1pb9pm1",
+                    "tableau_table_name": "TREATMENTS",
+                    "bi_table_name": "TREATMENTS",
+                    "schema_name": "[SNOWFLAKE_LEARNING_DB].[RAJANMORYA_LOAD_SAMPLE_DATA_FROM_S3].[TREATMENTS]",
+                    "relation_type": "physical_table",
+                    "schema_source": "metadata-records",
+                    "columns": [
+                        {
+                            "tableau_column_name": "TREATMENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Treatment Id (Treatments)",
+                            "bi_column_name": "Treatment Id (Treatments)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "APPOINTMENT_ID",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Appointment Id (Treatments)",
+                            "bi_column_name": "Appointment Id (Treatments)",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "TREATMENT_TYPE",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Treatment Type",
+                            "bi_column_name": "Treatment Type",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "TREATMENT_DESCRIPTION",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Treatment Description",
+                            "bi_column_name": "Treatment Description",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "PRESCRIBED_MEDICATION",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Prescribed Medication",
+                            "bi_column_name": "Prescribed Medication",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "START_DATE",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "Start Date",
+                            "bi_column_name": "Start Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "END_DATE",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "End Date",
+                            "bi_column_name": "End Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "OUTCOME_STATUS",
+                            "tableau_datatype": "string",
+                            "tableau_renamed_column_name": "Outcome Status",
+                            "bi_column_name": "Outcome Status",
+                            "bi_datatype": "Text"
+                        },
+                        {
+                            "tableau_column_name": "FOLLOW_UP_DATE",
+                            "tableau_datatype": "date",
+                            "tableau_renamed_column_name": "Follow Up Date",
+                            "bi_column_name": "Follow Up Date",
+                            "bi_datatype": "Date"
+                        },
+                        {
+                            "tableau_column_name": "TREATMENT_COST",
+                            "tableau_datatype": "real",
+                            "tableau_renamed_column_name": "Treatment Cost",
+                            "bi_column_name": "Treatment Cost",
+                            "bi_datatype": "Decimal Number"
+                        }
+                    ]
+                }
+            ],
+            "visuals": {
+                "sheet_visuals": [],
+                "dashboards": [],
+                "stories": []
+            },
+            "relationships": [
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "BILLS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "BILLS.Appointment Id (Bills)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "BILLS",
+                        "toColumn": "Appointment Id (Bills)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "DOCTORS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Doctor Id",
+                                "operator": "=",
+                                "right": "DOCTORS.Doctor Id (Doctors)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Doctor Id",
+                        "toTable": "DOCTORS",
+                        "toColumn": "Doctor Id (Doctors)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "PATIENTS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Patient Id",
+                                "operator": "=",
+                                "right": "PATIENTS.Patient Id (Patients)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Patient Id",
+                        "toTable": "PATIENTS",
+                        "toColumn": "Patient Id (Patients)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "TREATMENTS",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "TREATMENTS.Appointment Id (Treatments)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "TREATMENTS",
+                        "toColumn": "Appointment Id (Treatments)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "APPOINTMENTS_VISIT_STATUS_FACT",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "APPOINTMENTS_VISIT_STATUS_FACT.APPOINTMENT_ID (Custom SQL Query1)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "APPOINTMENTS_VISIT_STATUS_FACT",
+                        "toColumn": "APPOINTMENT_ID (Custom SQL Query1)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                },
+                {
+                    "tableau": {
+                        "relationship_type": "logical",
+                        "from_table": "APPOINTMENTS",
+                        "to_table": "custom table",
+                        "cardinality": "many-to-many",
+                        "cardinality_source": "implicit_default",
+                        "join_conditions": [
+                            {
+                                "left": "APPOINTMENTS.Appointment Id",
+                                "operator": "=",
+                                "right": "custom table.APPOINTMENT_ID (Custom SQL Query)"
+                            }
+                        ]
+                    },
+                    "power_bi": {
+                        "fromTable": "APPOINTMENTS",
+                        "fromColumn": "Appointment Id",
+                        "toTable": "custom table",
+                        "toColumn": "APPOINTMENT_ID (Custom SQL Query)",
+                        "cardinality": "ManyToMany",
+                        "crossFilterDirection": "Both",
+                        "isActive": true
+                    }
+                }
+            ],
+            "measures": [
+                {
+                    "name": "Appointment to Treatment Ratio",
+                    "table": "APPOINTMENTS",
+                    "table_name": "APPOINTMENTS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "COUNT(Treatment Id) / COUNT(Appointment Id)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 413 Client Error: Payload Too Large for url: https://api.groq.com/openai/v1/chat/completions",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Average Consultation Fee",
+                    "table": "DOCTORS",
+                    "table_name": "DOCTORS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "AVG(Consultation Fee)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Average Doctor Experience (Years)1",
+                    "table": "DOCTORS",
+                    "table_name": "DOCTORS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "AVG(Experience Years)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Avg. Treatment Cost",
+                    "table": "TREATMENTS",
+                    "table_name": "TREATMENTS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "AVG(Treatment Cost)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Before Migration Count",
+                    "table": "APPOINTMENTS",
+                    "table_name": "APPOINTMENTS",
+                    "tableau_datatype": "integer",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "COUNT(Doctor Id)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Insurance Coverage %",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "SUM(Insurance Covered) / SUM(Total Amount)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 413 Client Error: Payload Too Large for url: https://api.groq.com/openai/v1/chat/completions",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Patients",
+                    "table": "APPOINTMENTS",
+                    "table_name": "APPOINTMENTS",
+                    "tableau_datatype": "integer",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "COUNTD(Patient Id)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Total Appointments ",
+                    "table": "api.groq.com",
+                    "table_name": "api.groq.com",
+                    "tableau_datatype": "integer",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "COUNT(Appointment Id)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: HTTPSConnectionPool(host='api.groq.com', port=443): Read timed out. (read timeout=5.0)",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Total Bill",
+                    "table": "api.groq.com",
+                    "table_name": "api.groq.com",
+                    "tableau_datatype": "integer",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "COUNT(Bill Id)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: HTTPSConnectionPool(host='api.groq.com', port=443): Read timed out. (read timeout=5.0)",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Total billing Amount",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "SUM(Total Amount)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: Circuit breaker OPEN for api.groq.com. Request rejected to prevent cascade failure.",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Total Revenue",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "SUM(Total Amount)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: Circuit breaker OPEN for api.groq.com. Request rejected to prevent cascade failure.",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Unpaid Balance",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "SUM(Total Amount) - SUM(Insurance Covered)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: Circuit breaker OPEN for api.groq.com. Request rejected to prevent cascade failure.",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "COLLECTED_REVENUE",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "IF Payment Status = 'Paid' THEN Total Amount\nELSE 0\nEND",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: Circuit breaker OPEN for api.groq.com. Request rejected to prevent cascade failure.",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Revenue Filter",
+                    "table": "BILLS",
+                    "table_name": "BILLS",
+                    "tableau_datatype": "boolean",
+                    "power_bi_datatype": "True/False",
+                    "tableau_formula": "SUM(COLLECTED_REVENUE) >= Revenue Threshold",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Top N Department Filter",
+                    "table": "APPOINTMENTS",
+                    "table_name": "APPOINTMENTS",
+                    "tableau_datatype": "boolean",
+                    "power_bi_datatype": "True/False",
+                    "tableau_formula": "RANK_DENSE(SUM(Department Revenue (LOD))) \n<= Top N Departments",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                },
+                {
+                    "name": "Doctor Contribution %",
+                    "table": "APPOINTMENTS",
+                    "table_name": "APPOINTMENTS",
+                    "tableau_datatype": "real",
+                    "power_bi_datatype": "Decimal Number",
+                    "tableau_formula": "Doctor Revenue (LOD) \n/ \nDepartment Revenue (LOD)",
+                    "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                    "confidence_score": 0,
+                    "review_notes": "DAX generation failed \u2014 no formula to evaluate."
+                }
+            ],
+            "parameters": [],
+            "sets": [],
+            "custom_sql": [],
+            "Calculated Fields & LODs": [
+                {
+                    "calculated_fields": [
+                        {
+                            "name": "Visit Status Filter",
+                            "tableau_formula": "IF Select Visit Status = 'All' THEN TRUE\nELSE Visit Status = Select Visit Status\nEND",
+                            "dependencies": [
+                                "Select Visit Status",
+                                "Visit Status"
+                            ],
+                            "usage_count": 0,
+                            "type": "dimension",
+                            "role": "dimension",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_datatype": "boolean",
+                            "power_bi_datatype": "True/False",
+                            "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "Conversion failed: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6"
+                        },
+                        {
+                            "name": "Experience Level_Cal",
+                            "tableau_formula": "IF Experience Years < 5 THEN \"Junior\"\nELSEIF Experience Years <= 10 THEN \"Mid-Level\"\nELSE \"Senior\"\nEND",
+                            "dependencies": [
+                                "Experience Years"
+                            ],
+                            "usage_count": 2,
+                            "type": "dimension",
+                            "role": "dimension",
+                            "table_name": "DOCTORS",
+                            "tableau_datatype": "string",
+                            "power_bi_datatype": "Text",
+                            "dax_formula": "IF('DOCTORS'[Experience Years] < 5, \"Junior\", IF('DOCTORS'[Experience Years] <= 10, \"Mid-Level\", \"Senior\"))",
+                            "confidence_score": 100,
+                            "review_notes": "No syntax errors, correct column reference, proper IF mapping, appropriate for a dimension calculated column, logic matches original Tableau formula."
+                        },
+                        {
+                            "name": "Doctor RLS Filter",
+                            "tableau_formula": "Email Address = USERNAME()",
+                            "dependencies": [
+                                "Email Address"
+                            ],
+                            "usage_count": 0,
+                            "type": "measure",
+                            "role": "dimension",
+                            "table_name": "DOCTORS",
+                            "tableau_datatype": "boolean",
+                            "power_bi_datatype": "True/False",
+                            "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "Conversion failed: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6"
+                        },
+                        {
+                            "name": "Username",
+                            "tableau_formula": "USERNAME()",
+                            "dependencies": [],
+                            "usage_count": 0,
+                            "type": "measure",
+                            "role": "dimension",
+                            "table_name": "",
+                            "tableau_datatype": "string",
+                            "power_bi_datatype": "Text",
+                            "dax_formula": "-- ERROR: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "Conversion failed: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6"
+                        }
+                    ]
+                },
+                {
+                    "lod_expressions": [
+                        {
+                            "name": "Appointments per Patient (fixed)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "Appointment Id",
+                                "Patient Id"
+                            ],
+                            "tableau_datatype": "integer",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ FIXED Patient Id : COUNT(Appointment Id) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Average by Specialization (NESTED)",
+                            "lod_type": "nested",
+                            "dimensions": [
+                                "Appointment Id",
+                                "Insurance Covered",
+                                "Specialization",
+                                "Total Amount"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "BILLS",
+                            "tableau_formula": "{ FIXED Specialization :\n    AVG(\n        { FIXED Appointment Id :\n            SUM(Total Amount) - SUM(Insurance Covered)\n        }\n    )\n}",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Unpaid Balance per Specialization (Fixed)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "Insurance Covered",
+                                "Specialization",
+                                "Total Amount"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "BILLS",
+                            "tableau_formula": "{ FIXED Specialization :\n    SUM(Total Amount) - SUM(Insurance Covered)\n}",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Avg Consultation Fee per Patient(Include)",
+                            "lod_type": "include",
+                            "dimensions": [
+                                "Consultation Fee",
+                                "Patient Id"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ INCLUDE Patient Id : AVG(Consultation Fee) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Department Total Revenue (LOD)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "COLLECTED_REVENUE",
+                                "Department"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ FIXED Department : SUM(COLLECTED_REVENUE) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Appointments per Doctor (LOD",
+                            "lod_type": "include",
+                            "dimensions": [
+                                "Appointment Id",
+                                "Doctor Id"
+                            ],
+                            "tableau_datatype": "integer",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ INCLUDE Doctor Id : COUNT(Appointment Id) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Completed Appointments per Department",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "Department",
+                                "VISIT_STATUS_CLEAN"
+                            ],
+                            "tableau_datatype": "integer",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ FIXED Department :\n    SUM(\n        IF VISIT_STATUS_CLEAN = 'Completed' THEN 1 ELSE 0 END\n    )\n}",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Department Revenue (LOD)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "COLLECTED_REVENUE",
+                                "Department"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "APPOINTMENTS",
+                            "tableau_formula": "{ FIXED Department : SUM(COLLECTED_REVENUE) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Doctor Bill Count (LOD)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "Bill Id",
+                                "Doctor Id (Doctors)"
+                            ],
+                            "tableau_datatype": "integer",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "BILLS",
+                            "tableau_formula": "{ FIXED Doctor Id (Doctors) : COUNT(Bill Id) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Avg Doctor Bill Count by Specialization (Nested LOD)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "Doctor Bill Count (LOD)",
+                                "Specialization"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "DOCTORS",
+                            "tableau_formula": "{ FIXED Specialization : AVG(Doctor Bill Count (LOD)) }",
+                            "dax_formula": "-- ERROR CONVERTING: LLM call failed after 6 retries. Last error: 429 rate limit on attempt 6",
+                            "confidence_score": 0,
+                            "review_notes": "DAX generation failed \u2014 no formula to evaluate.",
+                            "type": "measure",
+                            "role": "measure"
+                        },
+                        {
+                            "name": "Doctor Revenue (LOD)",
+                            "lod_type": "fixed",
+                            "dimensions": [
+                                "COLLECTED_REVENUE",
+                                "Department",
+                                "Doctor Id"
+                            ],
+                            "tableau_datatype": "real",
+                            "power_bi_datatype": "Decimal Number",
+                            "table_name": "BILLS",
+                            "tableau_formula": "{ FIXED Department, Doctor Id :\n    SUM(COLLECTED_REVENUE)\n}",
+                            "dax_formula": "CALCULATE(SUMX(RELATEDTABLE('BILLS'), 'BILLS'[Total Amount]), ALLEXCEPT('APPOINTMENTS', 'APPOINTMENTS'[Department], 'APPOINTMENTS'[Doctor Id]))",
+                            "confidence_score": 100,
+                            "review_notes": "No syntax errors, correct column references, appropriate use of RELATEDTABLE and ALLEXCEPT to mimic FIXED LOD. All criteria satisfied.",
+                            "type": "measure",
+                            "role": "measure"
+                        }
+                    ]
+                }
+            ],
+            "formatting_and_styling": {},
+            "actions": [],
+            "embedded_assets": {},
+            "permissions": {},
+            "artifacts": {},
+            "security": {
+                "row_level_security": true,
+                "details": [
+                    {
+                        "type": "manual_calculation",
+                        "description": "RLS implemented using USERNAME() / ISMEMBEROF()",
+                        "calculations": [
+                            {
+                                "column_caption": "Doctor RLS Filter",
+                                "column_name": "[Calculation_0013498422951993]",
+                                "formula": "[EMAIL_ADDRESS] = USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "boolean",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            },
+                            {
+                                "column_caption": "Username",
+                                "column_name": "[Calculation_0013498428411962]",
+                                "formula": "USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "string",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            }
+                        ]
+                    }
+                ]
+            },
+            "llm_status": {
+                "calculated_fields_converted": true,
+                "reason": "Converted successfully"
+            },
+            "original_request_payload": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "run_id": "11234",
+                "skip_llm": false
+            }
+        },
+        "saved_at": "2026-09-21T02:12:40.489797"
+    }
+}

@@ -1,0 +1,98 @@
+{
+    "status": "success",
+    "message": "Mapping processed successfully",
+    "run_id": "11234",
+    "source_type": "tableau",
+    "mapping_result": {
+        "status": "success",
+        "cosmos_db": {
+            "stored": false,
+            "error": "Circuit breaker OPEN for localhost:8081. Request rejected to prevent cascade failure."
+        },
+        "logs": {
+            "stored": true
+        },
+        "payload": {
+            "status": "success",
+            "message": "Mapping completed successfully",
+            "error_message": null,
+            "project_name": "Unknown",
+            "workbook_metadata": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "created_at": "2026-08-28T05:36:26.243983",
+                "name": "Unknown",
+                "version": "Unknown",
+                "source_build": "Unknown",
+                "file_type": "Unknown",
+                "site": "Unknown",
+                "timestamp": null
+            },
+            "datasources": [],
+            "tables": [],
+            "visuals": {
+                "sheet_visuals": [],
+                "dashboards": [],
+                "stories": []
+            },
+            "relationships": [],
+            "measures": [],
+            "parameters": [],
+            "sets": [],
+            "custom_sql": [],
+            "Calculated Fields & LODs": [
+                {
+                    "calculated_fields": []
+                },
+                {
+                    "lod_expressions": []
+                }
+            ],
+            "formatting_and_styling": {},
+            "actions": [],
+            "embedded_assets": {},
+            "permissions": {},
+            "artifacts": {},
+            "security": {
+                "row_level_security": true,
+                "details": [
+                    {
+                        "type": "manual_calculation",
+                        "description": "RLS implemented using USERNAME() / ISMEMBEROF()",
+                        "calculations": [
+                            {
+                                "column_caption": "Doctor RLS Filter",
+                                "column_name": "[Calculation_0013498422951993]",
+                                "formula": "[EMAIL_ADDRESS] = USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "boolean",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            },
+                            {
+                                "column_caption": "Username",
+                                "column_name": "[Calculation_0013498428411962]",
+                                "formula": "USERNAME()",
+                                "is_hidden": false,
+                                "datatype": "string",
+                                "role": "dimension",
+                                "likely_rls_filter": true
+                            }
+                        ]
+                    }
+                ]
+            },
+            "llm_status": {
+                "calculated_fields_converted": true,
+                "reason": "Converted successfully"
+            },
+            "original_request_payload": {
+                "project_id": "c5134699-2aa2-4ab2-b201-7fcd06cf453a",
+                "workbook_id": "3d814c59-137c-4311-b60a-0f631ea66eda",
+                "run_id": "11234",
+                "skip_llm": false
+            }
+        },
+        "saved_at": "2026-09-19T18:59:10.472594"
+    }
+}
