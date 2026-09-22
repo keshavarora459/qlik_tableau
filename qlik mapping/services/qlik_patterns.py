@@ -387,6 +387,43 @@ def translate_pick(expression: str) -> Tuple[str, bool]:
     return expression, changed
 
 
+MATCH_REGEX = re.compile(r"\bMatch\s*\(", re.IGNORECASE)
+
+def translate_match(expression: str) -> Tuple[str, bool]:
+    """Translate Qlik Match(expr, val1, val2, ...) into DAX SWITCH."""
+    changed = False
+    while True:
+        match = MATCH_REGEX.search(expression)
+        if not match:
+            break
+        start = match.end()
+        depth, end = 1, start
+        while end < len(expression) and depth:
+            if expression[end] == "(":
+                depth += 1
+            elif expression[end] == ")":
+                depth -= 1
+            end += 1
+
+        args = _split_top_level(expression[start : end - 1])
+        if len(args) < 2:
+            break
+
+        test_expr = args[0].strip()
+        branches = [b.strip() for b in args[1:]]
+        
+        switch_cases = []
+        for i, branch in enumerate(branches, start=1):
+            switch_cases.append(f"{test_expr} = {branch}, {i}")
+            
+        replacement = f"SWITCH(TRUE(), {', '.join(switch_cases)}, BLANK())"
+        
+        expression = expression[: match.start()] + replacement + expression[end:]
+        changed = True
+
+    return expression, changed
+
+
 def translate_applymap(
     expression: str,
     known_tables: Optional[List[Dict[str, Any]]] = None,

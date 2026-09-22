@@ -35,6 +35,7 @@ from .qlik_patterns import (
     translate_aggr,
     translate_applymap,
     translate_pick,
+    translate_match,
     translate_rangesum,
     translate_set_analysis,
     translate_total_modifiers,
@@ -51,6 +52,9 @@ class DAXConverter:
         self.confidence_eval = ConfidenceEvaluator()
         # Set by qlik_to_dax when Num() carried a format string.
         self.last_format: Optional[str] = None
+        self.unresolved_columns: List[str] = []
+        self.column_mapping: Dict[str, Any] = {}
+        self.function_mapping: Dict[str, str] = {}
 
     # -- column index ------------------------------------------------------
 
@@ -88,22 +92,37 @@ class DAXConverter:
 
         working = SINGLE_QUOTED.sub(stash, expr)
 
-        # Stash bracketed references before qualifying. Per Qlik's docs, a
-        # measure's label used inside an expression is an alias for that
-        # measure, and it arrives already bracketed - `[Total Cost]`. The
-        # identifier pattern only refuses to match immediately after '[', so
-        # the *second* word of a multi-word measure name was still qualified:
-        #
-        #     [Total Revenue] - [Total Cost]
-        #       -> [Total Revenue] - [Total 'Sales'[Cost]]
-        #
-        # which balances bracket-for-bracket but is not valid DAX - square
-        # brackets never nest. Protecting the whole span fixes it for
-        # measure names and for already-qualified columns alike.
+        qualified_refs: List[str] = []
+
+        def stash_qualified(match: re.Match) -> str:
+            qualified_refs.append(match.group(0))
+            return f"\x02{len(qualified_refs) - 1}\x02"
+
+        # Stash already qualified references like 'Table'[Column] or "Table"[Column]
+        # so we don't accidentally re-process their inner bracketed parts.
+        working = re.sub(r"(?:'[^']*'|\"[^\"]*\")\[[^\]\[]*\]", stash_qualified, working)
+
         brackets: List[str] = []
 
         def stash_bracket(match: re.Match) -> str:
-            brackets.append(match.group(0))
+            token = match.group(0)
+            inner = token[1:-1]
+            if inner in index:
+                table = index[inner]
+                resolved_token = f"'{table}'[{inner}]"
+                self.column_mapping[inner] = {
+                    "table": table,
+                    "column": inner,
+                    "dax_reference": resolved_token
+                }
+                brackets.append(resolved_token)
+            else:
+                # If it's a bracketed reference that isn't in our column index, it might be
+                # a measure reference like [Total Revenue]. We only treat it as an unresolved 
+                # physical column if it has no spaces or hyphens, matching the DAX validator heuristic.
+                if not any(c in inner for c in (" ", "-")) and not inner.startswith("@"):
+                    self.unresolved_columns.append(inner)
+                brackets.append(token)
             return f"\x01{len(brackets) - 1}\x01"
 
         working = BRACKETED_REF.sub(stash_bracket, working)
@@ -118,13 +137,25 @@ class DAXConverter:
                 return token
             table = index.get(token)
             if table:
-                return f"'{table}'[{token}]"
+                resolved_token = f"'{table}'[{token}]"
+                self.column_mapping[token] = {
+                    "table": table,
+                    "column": token,
+                    "dax_reference": resolved_token
+                }
+                return resolved_token
+            
+            # Unqualified bare identifier that is not in the syntax keywords and not in the index.
+            self.unresolved_columns.append(token)
             return token
 
         working = IDENTIFIER.sub(qualify, working)
 
         for position, bracket in enumerate(brackets):
             working = working.replace(f"\x01{position}\x01", bracket)
+
+        for position, qref in enumerate(qualified_refs):
+            working = working.replace(f"\x02{position}\x02", qref)
 
         for position, literal in enumerate(literals):
             working = working.replace(f"\x00{position}\x00", f"'{literal}'")
@@ -141,6 +172,10 @@ class DAXConverter:
         Columns are qualified exactly once, up front, so no later rewrite can
         touch an already-written reference.
         """
+        self.unresolved_columns = []
+        self.column_mapping = {}
+        self.function_mapping = {}
+
         if not qlik_expr or not str(qlik_expr).strip():
             return "BLANK()"
 
@@ -150,9 +185,18 @@ class DAXConverter:
         # Qlik Num() formatting wrapper must be stripped before processing expressions
         dax, self.last_format, _ = strip_num(str(qlik_expr).strip())
 
-        # 1. Translate Qlik Pick and ApplyMap constructs
-        dax, _ = translate_pick(dax)
-        dax, _ = translate_applymap(dax, known_tables)
+        # 1. Translate Qlik Match, Pick and ApplyMap constructs
+        dax, changed = translate_match(dax)
+        if changed:
+            self.function_mapping["MATCH"] = "SWITCH"
+            
+        dax, changed = translate_pick(dax)
+        if changed:
+            self.function_mapping["PICK"] = "SWITCH"
+            
+        dax, changed = translate_applymap(dax, known_tables)
+        if changed:
+            self.function_mapping["APPLYMAP"] = "LOOKUPVALUE"
 
         # 2. Translate Qlik TOTAL modifiers (<Dim1, Dim2> and plain TOTAL)
         dax, _ = translate_total_modifiers(dax, table_resolver, known_tables)
@@ -240,11 +284,30 @@ class DAXConverter:
         conf_score = conf.get("score", 0.8) if isinstance(conf, dict) else (conf or 0.8)
         adjusted_score = max(0.0, min(1.0, round(conf_score + validation.get("confidence_delta", 0.0), 2)))
 
+        from .validators.dax_validators import _FUNCTION_CALL, BANNED_FUNCTIONS, _strip_strings
+        expr_no_str = _strip_strings(dax_expr)
+        unconverted = []
+        for m in _FUNCTION_CALL.finditer(expr_no_str):
+            fname = m.group(1).upper()
+            if fname in BANNED_FUNCTIONS:
+                unconverted.append(fname)
+        unconverted = sorted(list(set(unconverted)))
+
+        if self.unresolved_columns or unconverted:
+            conversion_status = "failed"
+        else:
+            conversion_status = "converted"
+
         return {
             "name": name,
             "qlik_expression": qlik_expr,
             "dax_expression": dax_expr,
             "conversion_method": "deterministic_rule",
+            "conversion_status": conversion_status,
+            "unresolved_columns": list(set(self.unresolved_columns)),
+            "unconverted_qlik_functions": unconverted,
+            "column_mapping": dict(self.column_mapping),
+            "function_mapping": dict(self.function_mapping),
             "qlik_number_format": qfmt,
             "tables": m_item.get("tables", []),
             "fabric": fabric_meta,
