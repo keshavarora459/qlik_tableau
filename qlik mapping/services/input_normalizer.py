@@ -75,6 +75,17 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
     if not raw_name and not expression:
         return {}
 
+    expr_str = str(expression or "").strip()
+    if not raw_name or str(raw_name).strip() == expr_str:
+        m_block = re.search(r'^\s*/\*(.*?)\*/', expr_str, flags=re.DOTALL)
+        if m_block and m_block.group(1).strip() and len(m_block.group(1).strip()) < 120:
+            raw_name = m_block.group(1).strip()
+        else:
+            # Safely extract from line comment: stop at newline, or another comment block, or a Qlik function
+            m_line = re.search(r'^\s*//\s*(.*?)(?:\r?\n|(?=//|/\*|\b(?:If|Sum|Max|Min|Avg|Count|Only|Concat|Pick|Match|Aggr)\b)|$)', expr_str, flags=re.IGNORECASE)
+            if m_line and m_line.group(1).strip() and len(m_line.group(1).strip()) < 120:
+                raw_name = m_line.group(1).strip()
+
     name = _sanitize_name(raw_name or expression, "Measure")
 
     return {
@@ -90,12 +101,35 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
     }
 
 
+def canonicalize_expression(expr: str) -> str:
+    if not expr:
+        return ""
+    expr = str(expr)
+    expr = re.sub(r'/\*.*?\*/', '', expr, flags=re.DOTALL)
+    # Only strip line comments if there is a newline, to prevent deleting the whole 
+    # expression if it's fed to us as a single line with spaces instead of newlines.
+    if '\n' in expr:
+        expr = re.sub(r'//.*', '', expr)
+    return re.sub(r'\s+', '', expr).lower()
+
+
+def get_measure_identity(m: Dict[str, Any]) -> str:
+    expr = str(m.get("qlik_expression") or m.get("expression") or "")
+    canonical_expr = canonicalize_expression(expr)
+    # Group purely by semantic expression identity, not by Qlik IDs, so that master
+    # measures and visual inline measures that share the same expression are squashed.
+    if not canonical_expr:
+        # Fallback to ID only if the expression itself was completely empty
+        measure_id = str(m.get("measure_id") or "").strip()
+        return f"id::{measure_id}"
+    return hashlib.md5(canonical_expr.encode()).hexdigest()
+
+
 def normalize_measures(raw: Any) -> List[Dict[str, Any]]:
     """Accept a list, or a {"measures": [...]} wrapper, and flatten each item.
 
-    Deduplicates by measure name (case-insensitive, first occurrence wins) so
-    that a measure appearing more than once in the Qlik parsing output never
-    produces duplicate entries in the conversion pipeline.
+    Deduplicates using source-measure identity (canonical expression and optional measure_id)
+    so identical expressions without explicitly distinct IDs aren't mapped twice.
     """
     if isinstance(raw, dict):
         raw = raw.get("measures", [])
@@ -105,14 +139,40 @@ def normalize_measures(raw: Any) -> List[Dict[str, Any]]:
         m = normalize_measure(item)
         if not m:
             continue
-        key = m.get("name", "").strip().lower()
-        if key and key in seen:
-            continue  # skip duplicate
-        if key:
-            seen[key] = True
+        identity = get_measure_identity(m)
+        if identity in seen:
+            continue
+        seen[identity] = True
         result.append(m)
     return result
 
+
+def _deduplicate_measures(measures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    import logging
+    logger = logging.getLogger(__name__)
+    seen: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
+    
+    for m in measures or []:
+        identity_key = get_measure_identity(m)
+        if identity_key in seen:
+            logger.debug("Dropping identical duplicate measure with identity: '%s'", identity_key)
+            continue  # skip this duplicate
+            
+        seen[identity_key] = m
+        
+        name = (m.get("name") or "Measure").strip()
+        original_name_lower = name.lower()
+        if original_name_lower in seen_names:
+            suffix = 1
+            while f"{original_name_lower} {suffix}" in seen_names:
+                suffix += 1
+            name = f"{name} {suffix}"
+            m["name"] = name
+            
+        seen_names.add(name.lower())
+        
+    return list(seen.values())
 
 def normalize_dimension(raw: Any) -> Dict[str, Any]:
     """Flatten one dimension, keeping calculated/drill-down information."""

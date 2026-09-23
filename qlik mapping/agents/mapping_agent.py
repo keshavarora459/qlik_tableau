@@ -67,6 +67,9 @@ class MappingAgent(ConversableAgent):
             # The previous `"name" in item` guard silently dropped every raw
             # measure — 29 in, 0 out, with no error raised.
             raw_measures = normalize_measures(source)
+            from services.input_normalizer import _deduplicate_measures
+            raw_measures = _deduplicate_measures(raw_measures)
+            
             if not raw_measures:
                 self.logger.warning("No measures could be normalized from the payload")
                 return []

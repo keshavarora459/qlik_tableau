@@ -23,10 +23,10 @@ async def test_llm_mquery_converter_refines_table():
     )
     converter = MQueryConverter(llm_client=MockLLMClient(llm_output))
     table = {
-        "name": "GRADES",
+        "name": "TargetTable",
         "load_type": "resident",
         "qlik_query": "LOAD student_id, numeric_score RESIDENT RawExamData WHERE IsNull(numeric_score) = 0;",
-        "m_query": "let\n    Source = GRADES\nin\n    Source"
+        "m_query": "let\n    Source = TargetTable\nin\n    Source"
     }
     
     result = await converter.refine_one(table, table["m_query"], ["RawExamData"])
@@ -44,7 +44,7 @@ def test_validate_mquery_passes_valid_expressions():
         'in\n'
         '    #"Changed Type"'
     )
-    ok, problems = validate_mquery(expr, "GRADES", [])
+    ok, problems = validate_mquery(expr, "TargetTable", [])
     assert ok is True
     assert len(problems) == 0
 

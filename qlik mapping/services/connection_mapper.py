@@ -43,6 +43,31 @@ _M_TYPE_BY_FABRIC_TYPE = {
 }
 
 
+def map_source_datatype_to_m(source_type: str) -> str:
+    """Normalize and map source datatype to M datatype."""
+    if not source_type:
+        return "type text"
+    
+    t = source_type.lower().strip()
+    
+    if t in ("date",):
+        return "type date"
+    if t in ("datetime", "timestamp"):
+        return "type datetime"
+    if t in ("timestamp_tz",):
+        return "type datetimezone"
+    if t in ("varchar", "text", "string"):
+        return "type text"
+    if t in ("integer", "int", "bigint"):
+        return "Int64.Type"
+    if t in ("decimal", "numeric", "number", "float", "double"):
+        return "type number"
+    if t in ("boolean", "bool"):
+        return "type logical"
+        
+    return "type text"
+
+
 def type_transforms_from_columns(columns: Optional[List[Dict[str, Any]]], tracker: Optional['MQuerySchemaTracker'] = None) -> str:
     """Build a `{"Col", type X}, ...` list from the table's already-resolved
     Fabric column types, for a `Table.TransformColumnTypes` step.
@@ -63,7 +88,12 @@ def type_transforms_from_columns(columns: Optional[List[Dict[str, Any]]], tracke
                 continue # Skip columns that don't exist in the current schema
             name = resolved_name
             
-        m_type = _M_TYPE_BY_FABRIC_TYPE.get(column.get("fabric_datatype"), "type text")
+        source_type = column.get("source_datatype") or column.get("datatype") or column.get("type")
+        if source_type:
+            m_type = map_source_datatype_to_m(source_type)
+        else:
+            m_type = _M_TYPE_BY_FABRIC_TYPE.get(column.get("fabric_datatype"), "type text")
+            
         parts.append(f'{{"{name}", {m_type}}}')
     return ", ".join(parts)
 
@@ -90,17 +120,34 @@ class MQuerySchemaReferenceError(Exception):
 
 
 class MQuerySchemaTracker:
-    def __init__(self, initial_columns: List[str]):
+    def __init__(self, initial_columns: List[Any]):
         # Keep original casing for M output, but do case-insensitive comparisons
-        self.active_columns = list(initial_columns) if initial_columns else []
+        self.active_columns = []
+        for col in initial_columns or []:
+            if isinstance(col, str):
+                self.active_columns.append({
+                    "qlik_name": col,
+                    "m_name": col,
+                    "fabric_name": col,
+                    "source_datatype": "unknown",
+                    "m_datatype": "type text",
+                    "transformation": "parsing",
+                    "source": "parsing"
+                })
+            elif isinstance(col, dict):
+                self.active_columns.append(dict(col))
+
+    def get_schema(self) -> List[Dict[str, Any]]:
+        return list(self.active_columns)
 
     def apply_rename(self, renames: List[Tuple[str, str]], step_name: str, previous_step_name: str = None) -> None:
         """Apply a list of (old, new) renames to the schema. Throws error if old not found."""
         for old_col, new_col in renames:
             found = False
-            for i, active_col in enumerate(self.active_columns):
-                if active_col.lower() == old_col.lower():
-                    self.active_columns[i] = new_col
+            for active_col in self.active_columns:
+                if active_col.get("m_name", "").lower() == old_col.lower():
+                    active_col["m_name"] = new_col
+                    active_col["transformation"] = "renamed"
                     found = True
                     break
             if not found:
@@ -108,7 +155,7 @@ class MQuerySchemaTracker:
                     f"Column '{old_col}' does not exist in the schema produced by the previous step.",
                     step=step_name,
                     column=old_col,
-                    available=list(self.active_columns),
+                    available=[c.get("m_name") for c in self.active_columns],
                     previous_step=previous_step_name
                 )
 
@@ -118,7 +165,7 @@ class MQuerySchemaTracker:
         for col in columns:
             found = False
             for active_col in self.active_columns:
-                if active_col.lower() == col.lower():
+                if active_col.get("m_name", "").lower() == col.lower():
                     new_active.append(active_col)
                     found = True
                     break
@@ -127,7 +174,7 @@ class MQuerySchemaTracker:
                     f"Column '{col}' does not exist in the schema produced by the previous step.",
                     step=step_name,
                     column=col,
-                    available=list(self.active_columns),
+                    available=[c.get("m_name") for c in self.active_columns],
                     previous_step=previous_step_name
                 )
         self.active_columns = new_active
@@ -136,15 +183,15 @@ class MQuerySchemaTracker:
         """Remove specified columns from the schema."""
         to_remove_lower = {c.lower() for c in columns}
         for col in columns:
-            if not any(c.lower() == col.lower() for c in self.active_columns):
+            if not any(c.get("m_name", "").lower() == col.lower() for c in self.active_columns):
                  raise MQuerySchemaReferenceError(
                     f"Column '{col}' does not exist in the schema produced by the previous step.",
                     step=step_name,
                     column=col,
-                    available=list(self.active_columns),
+                    available=[c.get("m_name") for c in self.active_columns],
                     previous_step=previous_step_name
                 )
-        self.active_columns = [c for c in self.active_columns if c.lower() not in to_remove_lower]
+        self.active_columns = [c for c in self.active_columns if c.get("m_name", "").lower() not in to_remove_lower]
 
     def resolve_target_name(self, target_name: str) -> Optional[str]:
         """Find the currently active name for a given target column. 
@@ -153,14 +200,14 @@ class MQuerySchemaTracker:
             return None
             
         # 1. Exact match
-        if target_name in self.active_columns:
+        if any(c.get("m_name") == target_name for c in self.active_columns):
             return target_name
         
         # 2. Case insensitive match
         target_lower = target_name.lower()
         for active_col in self.active_columns:
-            if active_col.lower() == target_lower:
-                return active_col
+            if active_col.get("m_name", "").lower() == target_lower:
+                return active_col.get("m_name")
                 
         # 3. Stripped alphanumeric match (ignoring dots, spaces, underscores)
         def _strip(s: str) -> str:
@@ -171,8 +218,8 @@ class MQuerySchemaTracker:
             return None
             
         for active_col in self.active_columns:
-            if _strip(active_col) == target_stripped:
-                return active_col
+            if _strip(active_col.get("m_name", "")) == target_stripped:
+                return active_col.get("m_name")
                 
         return None
 
@@ -435,12 +482,13 @@ def resolve_server_name(
     return server or None
 
 
-def validate_m_query(m_query: Optional[str]) -> Dict[str, Any]:
+def validate_m_query(m_query: Optional[str], columns: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Generic validation of generated Power Query M expressions.
     
     Verifies that:
     1. Query does not contain unresolved placeholders (<DATABASE>, <SERVER>, <HOST>, <SCHEMA>, <TABLE>, undefined, null).
     2. Connector calls (specifically Sql.Database) have server and database resolved, non-empty, and non-placeholder.
+    3. Source datatypes match generated M datatypes correctly.
     """
     if not m_query or not isinstance(m_query, str) or not m_query.strip():
         return {
@@ -499,6 +547,29 @@ def validate_m_query(m_query: Optional[str]) -> Dict[str, Any]:
                 clean_a = arg.strip('"\' ')
                 if clean_a in ("null", "undefined", "<DATABASE>", "<SERVER>", "<HOST>"):
                     errors.append(f"{fn_name}() parameter {i+1} is unresolved or a placeholder")
+
+    if columns and m_query:
+        for column in columns:
+            name = column.get("fabric_column_name") or column.get("qlik_column_name") or column.get("name")
+            source_type = column.get("source_datatype") or column.get("datatype") or column.get("type")
+            if not name or not source_type:
+                continue
+                
+            expected_m_type = map_source_datatype_to_m(source_type)
+            
+            pattern = r'\{"' + re.escape(name) + r'",\s*([^}]+)\}'
+            match = re.search(pattern, m_query)
+            if match:
+                generated_type = match.group(1).strip()
+                if expected_m_type == "type date" and generated_type != "type date":
+                    err_msg = (
+                        "M_DATATYPE_MAPPING_ERROR\n"
+                        f"- column: {name}\n"
+                        f"- source datatype: {source_type}\n"
+                        f"- generated M datatype: {generated_type}\n"
+                        f"- expected M datatype: {expected_m_type}"
+                    )
+                    errors.append(err_msg)
                     
     return {
         "passed": len(errors) == 0,
@@ -1218,70 +1289,25 @@ class ConnectionMapper:
                 last_step = parts[1].strip()
                 steps_to_add = []
                 
+                # Initialize tracker directly from the parsed columns (which represents the SQL projection)
+                tracker = MQuerySchemaTracker(columns)
+                
+                # Restore Table.RenameColumns to correctly apply Qlik aliases BEFORE typing
+                # (Value.NativeQuery often just uses a generic SELECT * if custom_sql is not provided, 
+                # meaning the columns emerge with their original names and MUST be renamed in M).
                 rename_pairs = []
-                if qlik_query:
-                    # Case 1: [old_col] AS [new_col] — both sides bracketed
-                    for match in re.finditer(r"\[([^\]]+)\]\s+AS\s+\[([^\]]+)\]", qlik_query, re.IGNORECASE):
-                        old_col, new_col = match.group(1), match.group(2)
-                        if old_col.lower() != new_col.lower():
-                            rename_pairs.append((old_col, new_col))
-                    # Case 2: word AS [alias with dots/spaces] — unbracketed left, bracketed right
-                    # This is the key pattern for Qlik aliases like: FIRST_NAME AS [INSTRUCTORS.FIRST_NAME]
-                    for match in re.finditer(r"\b([A-Za-z0-9_]+)\s+AS\s+\[([^\]]+)\]", qlik_query, re.IGNORECASE):
-                        old_col, new_col = match.group(1), match.group(2)
-                        if old_col.lower() not in ("load", "select", "from", "where", "group", "by", "as", "resident") and old_col.lower() != new_col.lower():
-                            if not any(old.lower() == old_col.lower() for old, _ in rename_pairs):
-                                rename_pairs.append((old_col, new_col))
-                    # Case 3: word AS word — both sides bare identifiers (no brackets)
-                    for match in re.finditer(r"\b([A-Za-z0-9_]+)\s+AS\s+([A-Za-z0-9_]+)\b", qlik_query, re.IGNORECASE):
-                        old_col, new_col = match.group(1), match.group(2)
-                        if old_col.lower() not in ("load", "select", "from", "where", "group", "by", "as", "resident") and old_col.lower() != new_col.lower():
-                            if not any(old.lower() == old_col.lower() for old, _ in rename_pairs):
-                                rename_pairs.append((old_col, new_col))
-
-                # Derive initial schema based on final columns and reverse-applying rename pairs
-                final_cols = []
-                for c in (columns or []):
-                    cname = c.get("fabric_column_name") or c.get("qlik_column_name") or c.get("name")
-                    if cname:
-                        final_cols.append(cname)
-                
-                def _strip(s: str) -> str:
-                    return re.sub(r'[^a-z0-9]', '', s.lower())
-
-                renamed_to_old_stripped = {_strip(n): o for o, n in rename_pairs}
-                initial_cols = []
-                for f in final_cols:
-                    f_stripped = _strip(f)
-                    if f_stripped in renamed_to_old_stripped:
-                        initial_cols.append(renamed_to_old_stripped[f_stripped])
-                    else:
-                        initial_cols.append(f)
-                
-                # Add any old cols from rename_pairs that didn't make it to final_cols
-                for o, n in rename_pairs:
-                    if not any(_strip(ic) == _strip(o) for ic in initial_cols):
-                        initial_cols.append(o)
-
-                tracker = MQuerySchemaTracker(initial_cols)
+                for col in (columns or []):
+                    name = col.get("fabric_column_name") or col.get("qlik_column_name") or col.get("name")
+                    source = col.get("source_name")
+                    if name and source and name != source:
+                        rename_pairs.append((source, name))
                 
                 if rename_pairs:
-                    try:
-                        tracker.apply_rename(rename_pairs, step_name='Renamed Columns', previous_step_name=last_step)
-                    except MQuerySchemaReferenceError as e:
-                        # Catch validation errors early and return a valid M-script encoding the error
-                        err_json = json.dumps(e.to_dict()).replace('"', '""')
-                        return (
-                            f'// {e.to_dict()["error"]}: {e.to_dict()["reason"]}\n'
-                            f'let\n    Source = #table({{"Status", "Reason", "Details"}}, {{{{"ERROR", "Schema Reference Error", "{err_json}"}}}})\nin\n    Source'
-                        )
-                        
                     rename_expr = build_rename_step(last_step, rename_pairs)
                     if rename_expr != last_step:
                         next_step = '#"Renamed Columns"'
                         steps_to_add.append(f'    {next_step} = {rename_expr}')
                         last_step = next_step
-                
                 type_expr = build_type_step(last_step, columns, tracker)
                 if type_expr != last_step:
                     next_step = '#"Changed Type"'

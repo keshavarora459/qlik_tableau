@@ -55,7 +55,8 @@ def test_already_flat_measures_still_work():
 
 
 def test_measures_accept_a_list_or_a_wrapper():
-    assert len(normalize_measures([QLIK_MEASURE, QLIK_MEASURE])) == 2
+    # Since they have the same Qlik ID and canonical expression, they are deduplicated.
+    assert len(normalize_measures([QLIK_MEASURE, QLIK_MEASURE])) == 1
     assert len(normalize_measures({"measures": [QLIK_MEASURE]})) == 1
     assert normalize_measures(None) == []
 

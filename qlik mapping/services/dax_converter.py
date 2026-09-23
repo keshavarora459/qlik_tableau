@@ -304,16 +304,35 @@ class DAXConverter:
         relationships: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         name = m_item.get("name") or m_item.get("qlik_name") or "Measure"
-        qlik_expr = m_item.get("expression") or m_item.get("qlik_expression") or ""
-        qfmt = m_item.get("qlik_number_format") or m_item.get("number_format") or {}
+        original_qlik_expr = m_item.get("expression") or m_item.get("qlik_expression") or ""
+        qlik_expr = original_qlik_expr
+        
+        # Generic fixes for Qlik syntax
+        qlik_expr = re.sub(r"\bIf\s*\(", "IF(", qlik_expr, flags=re.IGNORECASE)
+        qlik_expr = re.sub(
+            r"\bMax\s*\(\s*\{1\}\s*TOTAL\s+([A-Za-z0-9_]+)\s*\)",
+            r"CALCULATE(MAX([\1]), ALL())",
+            qlik_expr,
+            flags=re.IGNORECASE
+        )
+        qlik_expr = re.sub(
+            r"\bIsNum\s*\(\s*([A-Za-z0-9_]+)\s*\)", 
+            r"NOT ISERROR(VALUE(\1))", 
+            qlik_expr, 
+            flags=re.IGNORECASE
+        )
+        qlik_expr = re.sub(r"\bRangeMax\s*\(", "MAX(", qlik_expr, flags=re.IGNORECASE)
+        qlik_expr = re.sub(r"\bRangeMin\s*\(", "MIN(", qlik_expr, flags=re.IGNORECASE)
 
+        qfmt = m_item.get("qlik_number_format") or m_item.get("number_format") or {}
         self.last_format = None
         dax_expr = self.qlik_to_dax(qlik_expr, known_tables, relationships)
         # A format lifted out of Num() is more specific than the app default.
         fmt_str = self.last_format or self.extract_format_string(qfmt)
 
         fabric_meta = self.tmdl_gen.generate_measure_tmdl(name, dax_expr, fmt_str)
-        conf = self.confidence_eval.evaluate_measure(qlik_expr, dax_expr, known_tables)
+        # Pass the original qlik expression to confidence evaluator!
+        conf = self.confidence_eval.evaluate_measure(original_qlik_expr, dax_expr, known_tables)
 
         validation = run_dax_validators(fabric_meta, tables=known_tables)
         conf_score = conf.get("score", 0.8) if isinstance(conf, dict) else (conf or 0.8)
@@ -335,9 +354,21 @@ class DAXConverter:
         else:
             conversion_status = "converted"
 
+        table_counts = {}
+        for col_info in self.column_mapping.values():
+            if col_info.get("table"):
+                tbl = col_info["table"]
+                table_counts[tbl] = table_counts.get(tbl, 0) + 1
+                
+        target_table = "_Measures"
+        if table_counts:
+            target_table = sorted(table_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+            
+        fabric_meta["table"] = target_table
+
         return {
             "name": name,
-            "qlik_expression": qlik_expr,
+            "qlik_expression": original_qlik_expr,
             "dax_expression": dax_expr,
             "conversion_method": "deterministic_rule",
             "conversion_status": conversion_status,

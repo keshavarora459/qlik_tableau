@@ -177,15 +177,11 @@ def translate_aggr(
                 else:
                     dim_refs.append(f"[{d_clean}]")
                 
-        if len(dimensions) == 1:
-            grouping_table = f"VALUES({dim_refs[0]})"
-            replacement = f"{iterator}({grouping_table}, {inner})"
-        else:
-            table = _resolve_aggr_base_table(dimensions, inner, column_table, known_tables, relationships)
-            if not table:
-                table = column_table(dimensions[0].strip("[]'\"")) or "Table"
-            grouping = ", ".join(dim_refs)
-            replacement = f"{iterator}(SUMMARIZE('{table}', {grouping}), {inner})"
+        table = _resolve_aggr_base_table(dimensions, inner, column_table, known_tables, relationships)
+        if not table:
+            table = column_table(dimensions[0].strip("[]'\"")) or "Table"
+        grouping = ", ".join(dim_refs)
+        replacement = f'{iterator}(SUMMARIZE(\'{table}\', {grouping}, "@value", {inner}), [@value])'
 
         expression = expression[:start] + replacement + expression[outer_end:]
         changed = True

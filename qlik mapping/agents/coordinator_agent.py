@@ -61,36 +61,35 @@ def _fire_and_forget(coro) -> None:
 
 
 def _deduplicate_measures(measures: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Return the measures list with all duplicate names removed.
+    """Return the measures list with all identical source-measure identities removed.
 
-    Deduplication key: measure name (case-insensitive, stripped).
-    First occurrence wins.  If two entries share a name but have different
-    DAX expressions a warning is logged so the conflict is visible in the
-    server log, but only the first entry is kept — the semantic model import
-    will fail if two measures with identical names are submitted.
+    Deduplication key: (measure_id, canonical_expression).
+    First occurrence wins. Distinct identities with the same measure name will
+    have their names auto-suffixed to prevent DAX model compilation failures.
     """
+    from services.input_normalizer import get_measure_identity
     seen: Dict[str, Dict[str, Any]] = {}
+    seen_names: set = set()
     result: List[Dict[str, Any]] = []
+    
     for m in measures or []:
-        name = (m.get("name") or "").strip()
-        key = name.lower()
-        if not key:
-            result.append(m)
-            continue
-        if key in seen:
-            existing_dax = (seen[key].get("dax_expression") or seen[key].get("fabric", {}).get("dax_expression") or "").strip()
-            incoming_dax = (m.get("dax_expression") or m.get("fabric", {}).get("dax_expression") or "").strip()
-            if existing_dax != incoming_dax:
-                logger.warning(
-                    "Duplicate measure name conflict: '%s' already exists with a different DAX expression. "
-                    "Keeping the first occurrence and discarding the duplicate. "
-                    "Existing DAX: %r  Incoming DAX: %r",
-                    name, existing_dax[:120], incoming_dax[:120],
-                )
-            else:
-                logger.debug("Dropping identical duplicate measure: '%s'", name)
-            continue  # skip this duplicate regardless
-        seen[key] = m
+        identity_key = get_measure_identity(m)
+        if identity_key in seen:
+            logger.debug("Dropping identical duplicate measure with identity: '%s'", identity_key)
+            continue  # skip this duplicate
+            
+        seen[identity_key] = m
+        
+        name = (m.get("name") or "Measure").strip()
+        original_name_lower = name.lower()
+        if original_name_lower in seen_names:
+            suffix = 1
+            while f"{original_name_lower} {suffix}" in seen_names:
+                suffix += 1
+            name = f"{name} {suffix}"
+            m["name"] = name
+            
+        seen_names.add(name.lower())
         result.append(m)
     return result
 
@@ -274,11 +273,41 @@ class CoordinatorAgent(ConversableAgent):
                 if is_derived_label and raw_fmt not in ("General Text", "General", ""):
                     raw_fmt = "General Text"
 
-                # Sanitize column names: replace dots/spaces with underscores for TMDL compatibility
-                fabric_cname = re.sub(r"[.\s]+", "_", cname)
+                # Handle Qlik table-qualified column names (e.g. INSTRUCTORS.FIRST_NAME)
+                # The part after the dot is the actual source column name; the full
+                # qualified name is Qlik's disambiguation notation, NOT the physical name.
+                source_col_name = cname  # default: unqualified
+                if "." in cname:
+                    parts = cname.split(".", 1)
+                    # Only strip if the prefix matches or resembles the current table name
+                    # (Qlik uses TABLE.COLUMN notation for disambiguation)
+                    prefix = parts[0].strip()
+                    col_part = parts[1].strip()
+                    if col_part:
+                        source_col_name = col_part  # physical source column
+                
+                # Sanitize: replace remaining dots/spaces with underscores for TMDL compatibility
+                fabric_cname = re.sub(r"[\.\s]+", "_", source_col_name)
+                
+                # Import here to avoid circular imports if needed, or import at top
+                from services.connection_mapper import map_source_datatype_to_m
+                
                 cols.append({
-                    "qlik_column_name": cname, "qlik_datatype": qtype, "fabric_column_name": fabric_cname,
-                    "fabric_datatype": ftype, "summarize_by": summarize, "is_hidden": False, "format_string": raw_fmt
+                    "qlik_name": cname,
+                    "m_name": fabric_cname,
+                    "fabric_name": fabric_cname,
+                    "qlik_column_name": fabric_cname,
+                    "fabric_column_name": fabric_cname,
+                    "source_name": source_col_name,
+                    "source_datatype": qtype,
+                    "m_datatype": map_source_datatype_to_m(qtype),
+                    "fabric_datatype": ftype,
+                    "qlik_datatype": qtype,
+                    "transformation": "parsing",
+                    "source": "parsing",
+                    "summarize_by": summarize,
+                    "is_hidden": False,
+                    "format_string": raw_fmt
                 })
 
             # Check for genuine missing ApplyMap references
@@ -603,17 +632,18 @@ class CoordinatorAgent(ConversableAgent):
                 stage_key="variables",
             )
 
-        measures = await self.mapping_agent.extract_measures(data, tables)
-        log_agent_log(f"Extracted and converted {len(measures)} measure(s)", function_name="extract_measures", details={"measures_count": len(measures)})
-
-        # Auto-generate DAX measures for any Qlik expression labels used in
-        # visual y_axis fields that don't already exist as column names or measures.
-        existing_measure_names = {m.get("name", "").lower() for m in measures}
+        # 1. Pull all visual measures upstream and append to data["measures"]
         existing_col_names = {
             (c.get("fabric_column_name") or c.get("qlik_column_name", "")).lower()
             for t in tables for c in t.get("columns", [])
         }
-        all_existing = existing_measure_names | existing_col_names
+        table_cols = []
+        for t in tables:
+            for c in t.get("columns", []):
+                cn = c.get("fabric_column_name") or c.get("qlik_column_name") or ""
+                dt = (c.get("fabric_datatype") or c.get("qlik_datatype") or "").lower()
+                if cn:
+                    table_cols.append((t["name"], cn, dt))
 
         for vis in (data.get("visualizations") or []):
             if not isinstance(vis, dict):
@@ -637,74 +667,36 @@ class CoordinatorAgent(ConversableAgent):
                 if (label_clean.startswith("'") and label_clean.endswith("'")) or (label_clean.startswith('"') and label_clean.endswith('"')):
                     label_clean = label_clean[1:-1].strip()
 
-                if not label_clean or label_clean.lower() in all_existing:
+                if not label_clean:
                     continue
 
-                best_table = tables[0]["name"] if tables else "_Measures"
-                table_cols = []
-                for t in tables:
-                    for c in t.get("columns", []):
-                        cn = c.get("fabric_column_name") or c.get("qlik_column_name") or ""
-                        dt = (c.get("fabric_datatype") or c.get("qlik_datatype") or "").lower()
-                        if cn:
-                            table_cols.append((t["name"], cn, dt))
-
                 lower_label = label_clean.lower()
-                dax = None
-
-                # 1. Translate explicit Qlik expression if available
                 formula_to_convert = expr_clean or raw_label or ""
                 is_formula = bool(re.search(r"\b(sum|avg|average|count|min|max|distinctcount|rangesum|aggr|pick|applymap)\s*\(", formula_to_convert, re.IGNORECASE) or "{<" in formula_to_convert or "=" in formula_to_convert)
 
-                if is_formula:
-                    try:
-                        dax = self.dax_converter.qlik_to_dax(formula_to_convert, tables)
-                    except Exception:
-                        dax = None
-
-                # 2. Match column names from physical schema (only if not a formula)
-                if not dax and not any(ch in raw_label for ch in "(){}<>=*/"):
-                    # Check for exact or substring column name match
+                if not is_formula and not any(ch in raw_label for ch in "(){}<>=*/"):
                     matched_entry = next(((t, c, dt) for t, c, dt in table_cols if c.lower() == lower_label or c.lower() in lower_label or lower_label in c.lower()), None)
                     if matched_entry:
                         target_t, matched_c, dt = matched_entry
                         if any(k in lower_label for k in ["avg", "average", "mean"]):
-                            dax = f"AVERAGE('{target_t}'[{matched_c}])"
+                            expr_clean = f"Avg({matched_c})"
                         elif any(k in lower_label for k in ["count", "distinct", "unique"]):
-                            dax = f"DISTINCTCOUNT('{target_t}'[{matched_c}])"
+                            expr_clean = f"Count(distinct {matched_c})"
                         elif dt in ("double", "int64", "number", "numeric", "decimal") or any(k in lower_label for k in ["sum", "total", "revenue", "sales", "amount", "qty", "quantity", "unit", "cost", "price"]):
-                            dax = f"SUM('{target_t}'[{matched_c}])"
+                            expr_clean = f"Sum({matched_c})"
                         else:
-                            dax = f"DISTINCTCOUNT('{target_t}'[{matched_c}])"
+                            expr_clean = f"Count(distinct {matched_c})"
                     elif any(k in lower_label for k in ["transaction", "order", "count", "number of", "rows"]):
-                        dax = f"COUNTROWS('{best_table}')"
-                    else:
-                        dax = "BLANK()"
-
-                if not dax:
-                    dax = "BLANK()"
-
-                fmt = "#,##0.00" if any(k in lower_label for k in ["avg", "revenue", "price", "amount", "sales", "rate", "percent"]) else "#,##0"
-                is_unresolved = (dax == "BLANK()")
-                stub_measure = {
+                        expr_clean = "Count(1)"
+                        
+                data.setdefault("measures", []).append({
                     "name": label_clean,
-                    "qlik_expression": expr_clean or label_clean,
-                    "dax_expression": dax,
-                    "conversion_method": "deterministic_rule" if not is_unresolved else "unresolved",
-                    "tables": [best_table],
-                    "is_stub": is_unresolved,
-                    "fabric": {"table": best_table, "dax_expression": dax, "format_string": fmt, "tmdl": f"measure '{label_clean}' = {dax}"},
-                    "confidence": {
-                        "score": 0.85 if not is_unresolved else 0.3,
-                        "band": "high" if not is_unresolved else "low",
-                        "llm_score": 0.85 if not is_unresolved else 0.3,
-                        "requires_review": is_unresolved,
-                        "rationale": f"Derived DAX measure for visual field '{label_clean}'." if not is_unresolved else f"Unresolved visual field expression '{label_clean}'."
-                    },
-                }
-                stub_measure["validation"] = run_dax_validators(stub_measure["fabric"], tables=tables)
-                measures.append(stub_measure)
-                all_existing.add(label_clean.lower())
+                    "expression": expr_clean
+                })
+
+        # 2. Extract and convert ALL measures together, deduplicating up front!
+        measures = await self.mapping_agent.extract_measures(data, tables)
+        log_agent_log(f"Extracted and converted {len(measures)} measure(s)", function_name="extract_measures", details={"measures_count": len(measures)})
 
         measures_needing_review = sum(1 for m in measures if m.get("confidence", {}).get("requires_review"))
         log(
@@ -921,11 +913,31 @@ class CoordinatorAgent(ConversableAgent):
             connection_details=data.get("connection_details")
         )
 
+        # Deduplication happened upstream during extract_measures.
+        # We simply validate that no duplicates somehow bypassed the pipeline.
+        final_measures = measures
+        seen_identities = set()
+        from services.input_normalizer import get_measure_identity
+        for m in final_measures:
+            identity = get_measure_identity(m)
+            if identity in seen_identities:
+                m.setdefault("validation", {})
+                m["validation"]["duplicate_measure"] = True
+                m["validation"]["passed"] = False
+                m["validation"]["reason"] = f"Unexplained duplicate source identity: {identity}"
+            seen_identities.add(identity)
+
+        deployable = True
+        for m in final_measures:
+            if m.get("validation", {}).get("passed") is False:
+                deployable = False
+
         out_payload = {
             "status": "success", "message": "Mapping completed successfully", "error_message": None,
+            "deployable": deployable,
             "contract_version": "2.0", "summary": parsing_summary, "workbook_metadata": workbook_meta, "app_layout": app_layout,
             "app_metadata": app_meta, "datasources": datasources_formatted, "connections": connections, "tables": tables,
-            "relationships": relationships, "measures": _deduplicate_measures(measures), "dimensions": dimensions,
+            "relationships": relationships, "measures": final_measures, "dimensions": dimensions,
             "calculated_columns": data.get("calculated_columns", []), "custom_sql": data.get("custom_sql", []),
             "visuals": visuals_struct, "filters": filters,
             "limitations": [], "variables": converted_variables,

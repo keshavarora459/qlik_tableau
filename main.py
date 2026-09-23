@@ -20,25 +20,9 @@ load_dotenv(os.path.join(base_dir, ".env"))
 # ---------------------------------------------------------
 # Setup Module Paths Safely
 # ---------------------------------------------------------
-tableau_dir = os.path.join(base_dir, "tableau mapping")
 qlik_dir = os.path.join(base_dir, "qlik mapping")
 
-# Critical: Tableau must be first so `import app` resolves to the Tableau `app` folder,
-# and NOT Qlik's `app.py` file!
 sys.path.insert(0, qlik_dir)
-sys.path.insert(0, tableau_dir) 
-
-# ---------------------------------------------------------
-# Import Tableau natively
-# ---------------------------------------------------------
-try:
-    from app.models.request_models import MeasureRequest as TableauMeasureRequest
-    from app.api.mapping import get_mapping as tableau_get_mapping
-    from app.core.auth import require_auth as tableau_require_auth, AuthContext as TableauAuthContext
-    print("Successfully loaded Tableau agent natively.")
-except Exception as e:
-    print(f"Error loading Tableau: {e}")
-    traceback.print_exc()
 
 # ---------------------------------------------------------
 # Import Qlik natively
@@ -69,7 +53,7 @@ async def unified_mapping(request: Request, background_tasks: BackgroundTasks):
 
     source_type = body.get("source_type")
     if not source_type:
-        raise HTTPException(status_code=400, detail="Missing 'source_type' in payload. Must be 'qlik' or 'tableau'.")
+        raise HTTPException(status_code=400, detail="Missing 'source_type' in payload. Must be 'qlik'.")
 
     # Route natively
     try:
@@ -77,21 +61,6 @@ async def unified_mapping(request: Request, background_tasks: BackgroundTasks):
             req_obj = QlikMappingRequest(**body)
             # Call Qlik's native function
             resp_data = await qlik_post_mapping_data(payload=req_obj, request=request)
-            status_code = 200
-        elif source_type == "tableau":
-            req_obj = TableauMeasureRequest(**body)
-            # Resolve the AuthContext dependency with fallback for local/internal calls
-            try:
-                auth_context = await tableau_require_auth(request)
-            except HTTPException:
-                auth_hdr = request.headers.get("Authorization") or "Bearer dev.system.token"
-                tok = auth_hdr[7:].strip() if auth_hdr.startswith("Bearer ") else "dev.system.token"
-                if len(tok.split(".")) != 3:
-                    tok = "dev.system.token"
-                    auth_hdr = f"Bearer {tok}"
-                auth_context = TableauAuthContext(token=tok, auth_header=auth_hdr)
-            # Call Tableau's native function
-            resp_data = await tableau_get_mapping(body=req_obj, auth=auth_context)
             status_code = 200
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported source_type: {source_type}")

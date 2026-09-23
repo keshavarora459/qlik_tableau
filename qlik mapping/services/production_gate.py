@@ -118,7 +118,7 @@ class ProductionGate:
 
             # Validate M query generically
             if m_q:
-                val_res = validate_m_query(m_q)
+                val_res = validate_m_query(m_q, t.get("columns"))
                 if not val_res["passed"]:
                     m_passed = False
                     for err in val_res["errors"]:
