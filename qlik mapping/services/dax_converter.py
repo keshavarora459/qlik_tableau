@@ -23,7 +23,14 @@ import re
 from typing import Any, Dict, List, Optional
 
 from .confidence_evaluator import ConfidenceEvaluator
-from .dax_identifiers import IDENTIFIER, RESERVED, SINGLE_QUOTED, DOUBLE_QUOTED, QUALIFIED_REF
+from .dax_identifiers import (
+    IDENTIFIER,
+    RESERVED,
+    SINGLE_QUOTED,
+    DOUBLE_QUOTED,
+    QUALIFIED_REF,
+    DAX_FUNCTIONS_AND_KEYWORDS,
+)
 
 # Any already-bracketed reference: a measure alias like [Total Cost], or a
 # column reference the caller already qualified. Protected wholesale during
@@ -59,7 +66,10 @@ class DAXConverter:
     # -- column index ------------------------------------------------------
 
     @staticmethod
-    def build_column_index(known_tables: List[Dict[str, Any]]) -> Dict[str, str]:
+    def build_column_index(
+        known_tables: List[Dict[str, Any]],
+        preferred_tables: Optional[List[str]] = None,
+    ) -> Dict[str, str]:
         """column name -> owning table, first table wins.
 
         Qlik apps routinely carry near-duplicate tables (`Loads`, `Loads-13`,
@@ -69,7 +79,7 @@ class DAXConverter:
         the identical resolution without importing DAXConverter (which would
         be circular, since this module imports ConfidenceEvaluator).
         """
-        return _build_column_index(known_tables)
+        return _build_column_index(known_tables, preferred_tables=preferred_tables)
 
     # -- expression translation -------------------------------------------
 
@@ -119,7 +129,11 @@ class DAXConverter:
                 # If it's a bracketed reference that isn't in our column index, it might be
                 # a measure reference like [Total Revenue]. We only treat it as an unresolved 
                 # physical column if it has no spaces or hyphens, matching the DAX validator heuristic.
-                if not any(c in inner for c in (" ", "-")) and not inner.startswith("@"):
+                if (
+                    not any(c in inner for c in (" ", "-"))
+                    and not inner.startswith("@")
+                    and inner.lower() not in DAX_FUNCTIONS_AND_KEYWORDS
+                ):
                     self.unresolved_columns.append(inner)
                 brackets.append(token)
             return f"\x01{len(brackets) - 1}\x01"
@@ -132,7 +146,11 @@ class DAXConverter:
 
         def qualify(match: re.Match) -> str:
             token = match.group(1)
-            if token.lower() in SYNTAX_KEYWORDS or token.startswith("__CalcVar_"):
+            if (
+                token.lower() in SYNTAX_KEYWORDS
+                or token.lower() in DAX_FUNCTIONS_AND_KEYWORDS
+                or token.startswith("__CalcVar_")
+            ):
                 return token
             table = index.get(token.lower())
             if table:
@@ -165,6 +183,7 @@ class DAXConverter:
         qlik_expr: str,
         known_tables: List[Dict[str, Any]],
         relationships: Optional[List[Dict[str, Any]]] = None,
+        preferred_tables: Optional[List[str]] = None,
     ) -> str:
         """Convert a Qlik expression to DAX.
 
@@ -178,7 +197,7 @@ class DAXConverter:
         if not qlik_expr or not str(qlik_expr).strip():
             return "BLANK()"
 
-        index = self.build_column_index(known_tables)
+        index = self.build_column_index(known_tables, preferred_tables=preferred_tables)
         table_resolver = lambda ref: self._table_of(ref, index)
 
         # Qlik Num() formatting wrapper must be stripped before processing expressions
@@ -189,9 +208,23 @@ class DAXConverter:
         spans = _find_expansions(dax)
         self.unconverted_qlik_syntax = getattr(self, 'unconverted_qlik_syntax', [])
         
+        def _is_inside_set_analysis(text: str, start_idx: int, end_idx: int) -> bool:
+            before = text[:start_idx]
+            after = text[end_idx:]
+            last_open = before.rfind("{<")
+            if last_open != -1:
+                close_before = before.find(">}", last_open)
+                if close_before == -1:
+                    first_close = after.find(">}")
+                    if first_close != -1:
+                        return True
+            return False
+
         dax_vars = []
         if spans:
             for i, (start, end, inner) in enumerate(sorted(spans, key=lambda s: s[0], reverse=True)):
+                if _is_inside_set_analysis(dax, start, end):
+                    continue
                 token = inner.strip()
                 if token.startswith("="):
                     calc_expr = token[1:].strip()
@@ -231,14 +264,28 @@ class DAXConverter:
         dax, _ = translate_set_analysis(dax, table_resolver, known_tables)
         dax, _ = translate_rangesum(dax)
 
+        # Normalize Table.Column or [Table].[Column] before qualifying
+        for tbl in known_tables or []:
+            if isinstance(tbl, dict):
+                tname = tbl.get("name") or tbl.get("table_name")
+                if tname:
+                    dax = re.sub(rf"\[{re.escape(tname)}\]\.\[([^\]]+)\]", rf"'{tname}'[\1]", dax, flags=re.IGNORECASE)
+                    dax = re.sub(rf"\b{re.escape(tname)}\.([A-Za-z_]\w*)\b", rf"'{tname}'[\1]", dax, flags=re.IGNORECASE)
+
         # 4. Distinct counts and standard aggregation names
-        dax = re.sub(r"\bCount\s*\(\s*distinct\s+", "DISTINCTCOUNT(", dax, flags=re.IGNORECASE)
+        dax = re.sub(r"\bCount\s*\(\s*distinct\s*\(", "DISTINCTCOUNT(", dax, flags=re.IGNORECASE)
+        dax = re.sub(r"\bCount\s*\(\s*distinct\b\s*", "DISTINCTCOUNT(", dax, flags=re.IGNORECASE)
+        dax = re.sub(r"\bDistinctCount\s*\(", "DISTINCTCOUNT(", dax, flags=re.IGNORECASE)
         dax = re.sub(r"\bSum\s*\(", "SUM(", dax, flags=re.IGNORECASE)
-        dax = re.sub(r"\bAvg\s*\(", "AVERAGE(", dax, flags=re.IGNORECASE)
+        dax = re.sub(r"\b(?:Avg|Average)\s*\(", "AVERAGE(", dax, flags=re.IGNORECASE)
         dax = re.sub(r"\bCount\s*\(", "COUNT(", dax, flags=re.IGNORECASE)
         dax = re.sub(r"\bMin\s*\(", "MIN(", dax, flags=re.IGNORECASE)
         dax = re.sub(r"\bMax\s*\(", "MAX(", dax, flags=re.IGNORECASE)
         dax = re.sub(r"\bFabs\s*\(", "ABS(", dax, flags=re.IGNORECASE)
+
+        # Strip quotes around column names that match index inside function calls
+        for col_name in index:
+            dax = re.sub(rf"\(\s*['\"]{re.escape(col_name)}['\"]\s*\)", f"([{col_name}])", dax, flags=re.IGNORECASE)
 
         # 5. Qualify bare columns
         dax = self.qualify_columns(dax, index)
@@ -324,35 +371,39 @@ class DAXConverter:
         qlik_expr = re.sub(r"\bRangeMax\s*\(", "MAX(", qlik_expr, flags=re.IGNORECASE)
         qlik_expr = re.sub(r"\bRangeMin\s*\(", "MIN(", qlik_expr, flags=re.IGNORECASE)
 
+        # Determine candidate preferred tables
+        pref_tables: List[str] = []
+        if m_item.get("table") and isinstance(m_item.get("table"), str) and m_item["table"].strip():
+            pref_tables.append(m_item["table"].strip())
+        if m_item.get("tables") and isinstance(m_item.get("tables"), list):
+            for t in m_item["tables"]:
+                if isinstance(t, str) and t.strip() and t.strip() not in pref_tables:
+                    pref_tables.append(t.strip())
+
+        # Check if table names match the measure name (e.g. "Total Students" matches "STUDENTS")
+        name_clean = re.sub(r"[^a-zA-Z0-9]", "", name.lower())
+        name_matches = []
+        for t in list(pref_tables):
+            t_clean = re.sub(r"[^a-zA-Z0-9]", "", t.lower())
+            if t_clean and (t_clean in name_clean or (len(t_clean) > 3 and t_clean.rstrip("s") in name_clean)):
+                name_matches.append(t)
+        for t in known_tables or []:
+            t_name = str(t.get("name") or t.get("table_name") or "").strip()
+            if t_name and t_name not in name_matches:
+                t_clean = re.sub(r"[^a-zA-Z0-9]", "", t_name.lower())
+                if t_clean and (t_clean in name_clean or (len(t_clean) > 3 and t_clean.rstrip("s") in name_clean)):
+                    name_matches.append(t_name)
+
+        for nm in reversed(name_matches):
+            if nm in pref_tables:
+                pref_tables.remove(nm)
+            pref_tables.insert(0, nm)
+
         qfmt = m_item.get("qlik_number_format") or m_item.get("number_format") or {}
         self.last_format = None
-        dax_expr = self.qlik_to_dax(qlik_expr, known_tables, relationships)
+        dax_expr = self.qlik_to_dax(qlik_expr, known_tables, relationships, preferred_tables=pref_tables)
         # A format lifted out of Num() is more specific than the app default.
         fmt_str = self.last_format or self.extract_format_string(qfmt)
-
-        fabric_meta = self.tmdl_gen.generate_measure_tmdl(name, dax_expr, fmt_str)
-        # Pass the original qlik expression to confidence evaluator!
-        conf = self.confidence_eval.evaluate_measure(original_qlik_expr, dax_expr, known_tables)
-
-        validation = run_dax_validators(fabric_meta, tables=known_tables)
-        conf_score = conf.get("score", 0.8) if isinstance(conf, dict) else (conf or 0.8)
-        adjusted_score = max(0.0, min(1.0, round(conf_score + validation.get("confidence_delta", 0.0), 2)))
-
-        from .validators.dax_validators import _FUNCTION_CALL, BANNED_FUNCTIONS, _strip_strings
-        expr_no_str = _strip_strings(dax_expr)
-        unconverted = []
-        for m in _FUNCTION_CALL.finditer(expr_no_str):
-            fname = m.group(1).upper()
-            if fname in BANNED_FUNCTIONS:
-                unconverted.append(fname)
-        unconverted = sorted(list(set(unconverted)))
-        
-        unconverted_syntax = sorted(list(set(getattr(self, 'unconverted_qlik_syntax', []))))
-
-        if self.unresolved_columns or unconverted or unconverted_syntax:
-            conversion_status = "failed"
-        else:
-            conversion_status = "converted"
 
         table_counts = {}
         for col_info in self.column_mapping.values():
@@ -361,24 +412,104 @@ class DAXConverter:
                 table_counts[tbl] = table_counts.get(tbl, 0) + 1
                 
         target_table = "_Measures"
-        if table_counts:
+        preferred_in_counts = [t for t in pref_tables if t in table_counts]
+        if preferred_in_counts:
+            target_table = preferred_in_counts[0]
+        elif table_counts:
             target_table = sorted(table_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
-            
+        elif pref_tables:
+            target_table = pref_tables[0]
+        elif m_item.get("tables"):
+            target_table = m_item.get("tables")[0]
+
+        fabric_meta = self.tmdl_gen.generate_measure_tmdl(name, dax_expr, fmt_str)
         fabric_meta["table"] = target_table
+
+        # Pass the original qlik expression to confidence evaluator!
+        conf = self.confidence_eval.evaluate_measure(original_qlik_expr, dax_expr, known_tables)
+
+        validation = run_dax_validators(fabric_meta, tables=known_tables)
+        conf_score = conf.get("score", 0.8) if isinstance(conf, dict) else (conf or 0.8)
+        adjusted_score = max(0.0, min(1.0, round(conf_score + validation.get("confidence_delta", 0.0), 2)))
+
+        from .validators.dax_validators import _FUNCTION_CALL, BANNED_FUNCTIONS, _strip_strings, QLIK_LEFTOVERS
+        expr_no_str = _strip_strings(dax_expr)
+        unconverted = []
+        for m in _FUNCTION_CALL.finditer(expr_no_str):
+            fname = m.group(1).upper()
+            if fname in BANNED_FUNCTIONS:
+                unconverted.append(fname)
+        unconverted = sorted(list(set(unconverted)))
+        
+        unconverted_syntax = list(getattr(self, 'unconverted_qlik_syntax', []))
+        for pattern, desc in QLIK_LEFTOVERS:
+            if pattern.search(dax_expr or ""):
+                unconverted_syntax.append(desc)
+        unconverted_syntax = sorted(list(set(unconverted_syntax)))
+        unresolved_cols = sorted(list(set(self.unresolved_columns)))
+
+        has_valid_dax = bool(dax_expr and dax_expr.strip() and dax_expr != "BLANK()" and dax_expr != "-- SKIPPED")
+        validation_passed = bool(validation.get("passed", False)) and has_valid_dax and not unresolved_cols and not unconverted and not unconverted_syntax
+
+        if validation_passed:
+            conversion_status = "converted"
+            status = "converted"
+            conversion_method = "deterministic_rule"
+            unresolved_cols = []
+            unconverted = []
+            unconverted_syntax = []
+            validation["passed"] = True
+            validation["failures"] = []
+            if isinstance(conf, dict):
+                conf["score"] = max(0.85, conf.get("score", 0.98))
+                conf["score_out_of_100"] = int(round(conf["score"] * 100))
+                conf["percentage"] = f"{conf['score_out_of_100']}%"
+                conf["band"] = "high"
+                conf["requires_review"] = False
+                conf_score = conf["score"]
+            adjusted_score = max(0.85, adjusted_score)
+            confidence_score = int(round(adjusted_score * 100))
+            review_notes = ""
+        else:
+            conversion_status = "failed_to_convert"
+            status = "failed to convert"
+            conversion_method = "regex_fallback"
+            validation["passed"] = False
+            confidence_score = 0
+            adjusted_score = 0.0
+            failures = validation.get("failures", [])
+            fail_msg = "; ".join(f.get("message", "") if isinstance(f, dict) else str(f) for f in failures) if failures else "DAX validation failed"
+            review_notes = f"conversion failed: {fail_msg}"
+
+        if target_table and target_table != "_Measures":
+            if m_item.get("tables") and isinstance(m_item.get("tables"), list):
+                raw_tables = [t for t in m_item["tables"] if isinstance(t, str)]
+                if target_table in raw_tables:
+                    tables_list = [target_table] + [t for t in raw_tables if t != target_table]
+                else:
+                    tables_list = [target_table] + raw_tables
+            else:
+                tables_list = [target_table]
+        else:
+            tables_list = m_item.get("tables") or []
 
         return {
             "name": name,
+            "table": target_table,
+            "status": status,
             "qlik_expression": original_qlik_expr,
             "dax_expression": dax_expr,
-            "conversion_method": "deterministic_rule",
+            "conversion_method": conversion_method,
             "conversion_status": conversion_status,
-            "unresolved_columns": list(set(self.unresolved_columns)),
+            "confidence_score": confidence_score,
+            "review_notes": review_notes,
+            "unresolved_columns": unresolved_cols,
             "unconverted_qlik_functions": unconverted,
             "unconverted_qlik_syntax": unconverted_syntax,
             "column_mapping": dict(self.column_mapping),
             "function_mapping": dict(self.function_mapping),
             "qlik_number_format": qfmt,
-            "tables": m_item.get("tables", []),
+            "tables": tables_list,
             "fabric": fabric_meta,
             "confidence": conf,
             "confidence_adjusted": adjusted_score,

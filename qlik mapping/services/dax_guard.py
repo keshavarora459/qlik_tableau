@@ -42,6 +42,7 @@ PLACEHOLDER_TABLES = {
 FORBIDDEN_FUNCTIONS = {
     "match", "vlookup", "iferror", "ifnull", "nz", "isnull", "nullif",
     "concat_ws", "substr", "instr", "len_", "strpos", "to_char", "cast",
+    "above", "below", "rowno", "recno", "rangesum", "aggr", "applymap", "wildmatch", "peek", "subfield",
 }
 
 # DAX reserved words that must never be used as a VAR name.

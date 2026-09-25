@@ -331,3 +331,97 @@ class TMDLGenerator:
             "is_active": is_active,
             "lineage_tag": rel_id
         }
+
+    def generate_semantic_model(
+        self,
+        tables: List[Dict[str, Any]],
+        measures: List[Dict[str, Any]],
+        relationships: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, str]:
+        """Generate complete TMDL artifact files for the semantic model.
+
+        Outputs:
+          - definition/tables/{TableName}.tmdl for each table (including columns, measures, and partition)
+          - definition/relationships.tmdl if relationships exist
+        """
+        artifacts: Dict[str, str] = {}
+
+        # Index measures by assigned table name (lowercased)
+        measures_by_table: Dict[str, List[Dict[str, Any]]] = {}
+        unassigned_measures: List[Dict[str, Any]] = []
+        known_table_names = {
+            str(t.get("name") or t.get("table_name") or "").strip().lower()
+            for t in tables if isinstance(t, dict)
+        }
+
+        for m in measures or []:
+            if not isinstance(m, dict):
+                continue
+            m_table = str(m.get("table") or (m.get("fabric") or {}).get("table") or "").strip()
+            if m_table and m_table.lower() in known_table_names:
+                measures_by_table.setdefault(m_table.lower(), []).append(m)
+            else:
+                unassigned_measures.append(m)
+
+        for t in tables or []:
+            if not isinstance(t, dict):
+                continue
+            t_name = str(t.get("name") or t.get("table_name") or "Table").strip()
+            t_cols = t.get("columns") or []
+            t_meas = list(measures_by_table.get(t_name.lower(), []))
+
+            # Format partition / M-query
+            m_raw = t.get("m_query") or t.get("m_expression") or ""
+            if isinstance(m_raw, list):
+                m_q = "\n".join(str(step.get("content") or step.get("expression") or "") for step in m_raw if isinstance(step, dict))
+            else:
+                m_q = str(m_raw or "")
+
+            partition = {
+                "name": t_name,
+                "mode": t.get("mode", "import"),
+                "m_expression": m_q
+            } if m_q else None
+
+            tmdl_content = build_table(
+                name=t_name,
+                columns=t_cols,
+                measures=t_meas,
+                partition=partition,
+                lineage_tag=t.get("lineage_tag")
+            )
+            artifacts[f"definition/tables/{t_name}.tmdl"] = tmdl_content
+
+        if unassigned_measures:
+            tmdl_meas = build_table(
+                name="_Measures",
+                columns=[],
+                measures=unassigned_measures,
+                partition=None,
+                lineage_tag=self.generate_uuid("table:_Measures")
+            )
+            artifacts["definition/tables/_Measures.tmdl"] = tmdl_meas
+
+        if relationships:
+            rel_lines = []
+            for r in relationships:
+                if not isinstance(r, dict):
+                    continue
+                from_t = r.get("from_table") or r.get("source_table")
+                from_c = r.get("from_column") or r.get("source_column")
+                to_t = r.get("to_table") or r.get("target_table")
+                to_c = r.get("to_column") or r.get("target_column")
+                if from_t and from_c and to_t and to_c:
+                    rel_lines.append(build_relationship(
+                        from_table=from_t,
+                        from_column=from_c,
+                        to_table=to_t,
+                        to_column=to_c,
+                        cardinality=r.get("cardinality", "manyToOne"),
+                        cross_filter=r.get("cross_filter", "singleDirection"),
+                        is_active=r.get("is_active", True)
+                    ))
+            if rel_lines:
+                artifacts["definition/relationships.tmdl"] = "\n\n".join(rel_lines) + "\n"
+
+        return artifacts

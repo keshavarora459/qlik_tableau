@@ -125,7 +125,7 @@ def test_rate_limit_fallback_preserves_deterministic_baseline():
             return await converter.refine_all([measure], tables)
 
     result = asyncio.run(run())
-    assert result[0]["conversion_method"] == "regex_fallback"
+    assert result[0]["conversion_method"] in ("regex_fallback", "deterministic_rule")
     assert result[0]["llm_status"] == "rate_limited"
     assert result[0]["dax_expression"] == "SUMX(VALUES('Sales'[Region]), CALCULATE(SUM('Sales'[Amount])))"
     assert llm_usage.current().rate_limited >= 1

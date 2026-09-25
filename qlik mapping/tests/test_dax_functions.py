@@ -45,4 +45,5 @@ def test_clean_dax_still_passes_the_banned_function_check():
     result = ce.evaluate_measure("Sum(a)", "SUM('T'[a])", TABLES)
     banned = next(c for c in result["checks"] if c["id"] == "dax_no_banned_functions")
     assert banned["status"] == "pass"
+    problems = [c for c in result["checks"] if c["status"] == "fail"]
     assert len(problems) == 0

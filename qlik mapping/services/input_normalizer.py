@@ -96,6 +96,7 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
             qmeasure.get("qNumFormat"),
         ) or {},
         "tables": _as_list(raw.get("tables")),
+        "table": raw.get("table"),
         "description": qmeta.get("description"),
         "measure_id": qinfo.get("qId"),
     }
@@ -104,12 +105,12 @@ def normalize_measure(raw: Any) -> Dict[str, Any]:
 def canonicalize_expression(expr: str) -> str:
     if not expr:
         return ""
-    expr = str(expr)
+    expr = str(expr).strip()
     expr = re.sub(r'/\*.*?\*/', '', expr, flags=re.DOTALL)
-    # Only strip line comments if there is a newline, to prevent deleting the whole 
-    # expression if it's fed to us as a single line with spaces instead of newlines.
-    if '\n' in expr:
-        expr = re.sub(r'//.*', '', expr)
+    expr = re.sub(r'//[^\r\n]*(?:\r?\n|$)', ' ', expr)
+    expr = expr.strip()
+    if expr.startswith('='):
+        expr = expr[1:].strip()
     return re.sub(r'\s+', '', expr).lower()
 
 

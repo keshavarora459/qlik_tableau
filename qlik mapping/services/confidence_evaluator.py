@@ -1,7 +1,12 @@
 import re
 from typing import Any, Dict, List, Optional
 
-from .dax_identifiers import build_column_index, find_bare_columns
+from .dax_identifiers import (
+    build_column_index,
+    find_bare_columns,
+    QUALIFIED_REF,
+    DAX_FUNCTIONS_AND_KEYWORDS,
+)
 
 # M functions that indicate the query actually reaches a real Fabric
 # connector, as opposed to the placeholder `let Source = TableName in Source`
@@ -111,32 +116,97 @@ class ConfidenceEvaluator:
         return {
             "score": score,
             "score_out_of_100": score_100,
+            "confidence_score": score_100,
             "percentage": f"{score_100}%",
             "band": "high" if score >= 0.85 and not requires_review else ("medium" if score >= 0.60 else "low"),
             "llm_score": score,
             "requires_review": requires_review,
-            "rationale": rationale
+            "rationale": rationale,
+            "checks": checks,
         }
 
     def evaluate_measure(self, qlik_expr: str, dax_expr: str, known_tables: List[Dict[str, Any]]) -> Dict[str, Any]:
+        dax_expr = dax_expr or ""
         has_std_fn = any(fn in dax_expr.upper() for fn in (
             "DIVIDE", "SUM", "AVERAGE", "COUNT", "DISTINCTCOUNT", "MIN", "MAX",
             "CALCULATE", "SUMMARIZE", "MAXX", "SUMX", "AVERAGEX", "MINX", "COUNTX",
             "ALLSELECTED", "ALLEXCEPT", "ALL", "CONTAINSSTRING", "SEARCH"
         ))
-        score = 0.98 if has_std_fn else 0.85
-        rationale = f"The Qlik expression '{qlik_expr}' was converted to DAX '{dax_expr}' with all syntax checks passing."
+
+        column_index = build_column_index(known_tables)
+
+        # Check banned functions
+        banned_found = []
+        for fn in _QLIK_ONLY_FUNCTIONS:
+            if re.search(rf"\b{fn}\b", dax_expr, re.IGNORECASE):
+                banned_found.append(fn)
+        for fn in ("MATCH", "APPLYMAP", "NUM", "SUBFIELD", "ONLY", "WILDMATCH"):
+            if re.search(rf"\b{fn}\s*\(", dax_expr, re.IGNORECASE):
+                banned_found.append(fn)
+        banned_status = "fail" if banned_found else "pass"
+
+        # Check bare columns
+        scannable = QUALIFIED_REF.sub(" ", dax_expr)
+        bare = find_bare_columns(scannable, column_index)
+        has_bare = bool(bare.get("known_unqualified"))
+        bare_status = "fail" if has_bare else "pass"
+
+        # Check columns exist
+        col_missing = []
+        for m in re.finditer(r"'([^']+)'\s*\[\s*([^\]]+?)\s*\]", dax_expr):
+            tname, cname = m.group(1).lower(), m.group(2).lower()
+            table_found = next(
+                (t for t in (known_tables or []) if (t.get("name") or t.get("table_name") or "").lower() == tname),
+                None
+            )
+            if not table_found:
+                col_missing.append(f"Table '{m.group(1)}' not found")
+            else:
+                cols = [
+                    (c.get("fabric_column_name") or c.get("qlik_column_name") or c.get("name") or "").lower()
+                    for c in (table_found.get("columns") or table_found.get("fields") or [])
+                    if isinstance(c, dict)
+                ]
+                if cname not in cols:
+                    col_missing.append(f"Column '{m.group(2)}' not found in table '{m.group(1)}'")
+
+        bare_unresolved_tokens = [
+            m.group(1) for m in re.finditer(r"(?<![\[\w'])([A-Za-z_]\w*)\b(?!\s*\()", scannable)
+            if m.group(1).lower() not in DAX_FUNCTIONS_AND_KEYWORDS and not m.group(1).startswith("__CalcVar_")
+        ]
+        columns_exist_status = "fail" if (has_bare or col_missing or bare_unresolved_tokens) else "pass"
+
+        checks = [
+            {"id": "dax_no_banned_functions", "status": banned_status},
+            {"id": "dax_no_bare_columns", "status": bare_status},
+            {"id": "dax_columns_exist", "status": columns_exist_status},
+        ]
+
+        hard_failures = sum(1 for c in checks if c["status"] == "fail")
+        if hard_failures > 0:
+            score = max(0.20, round(0.98 - 0.25 * hard_failures, 2))
+            requires_review = True
+            band = "low" if score < 0.60 else "medium"
+            failed_ids = [c["id"] for c in checks if c["status"] == "fail"]
+            rationale = f"Validation checks failed for expression '{qlik_expr}': {', '.join(failed_ids)}."
+        else:
+            score = 0.98 if has_std_fn else 0.85
+            requires_review = False
+            band = "high"
+            rationale = f"The Qlik expression '{qlik_expr}' was converted to DAX '{dax_expr}' with all syntax checks passing."
 
         score = round(score, 2)
         score_100 = int(round(score * 100))
         return {
             "score": score,
             "score_out_of_100": score_100,
+            "confidence_score": score_100,
             "percentage": f"{score_100}%",
-            "band": "high" if score >= 0.85 else ("medium" if score >= 0.60 else "low"),
+            "band": band,
             "llm_score": score,
-            "requires_review": False,
-            "rationale": rationale
+            "requires_review": requires_review,
+            "rationale": rationale,
+            "checks": checks,
         }
 
     def evaluate_relationship(self, from_tbl: str, to_tbl: str) -> Dict[str, Any]:

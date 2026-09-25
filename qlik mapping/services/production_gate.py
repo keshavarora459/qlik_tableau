@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from services.validators.dax_validators import validate_dax_schema_binding
+from services.validators.dax_validators import validate_dax_schema_binding, validate_package_references
 from services.connection_mapper import validate_m_query
 
 
@@ -263,8 +263,21 @@ class ProductionGate:
         dax_val_obj = DaxValidationResult(passed=dax_passed, failures=dax_failures)
         checks["dax_validation"] = dax_passed
 
-        # 4. Visual Validation
+        # 4. Visual & Pipeline Reference Validation
         visual_passed = True
+        pkg_ref_result = validate_package_references(tables, measures, mapping_payload.get("visuals", {}))
+        generation_errors: List[str] = []
+        if not pkg_ref_result["valid"]:
+            for err in pkg_ref_result["errors"]:
+                err_msg = err.get("error", "Unknown pipeline reference error")
+                generation_errors.append(err_msg)
+                if err.get("stage") == "visual_validation":
+                    visual_passed = False
+                    blocking_reasons.append(f"Visual Reference Error: {err_msg}")
+                elif err.get("stage") == "dax_validation":
+                    dax_passed = False
+                    blocking_reasons.append(f"DAX Reference Error: {err_msg}")
+
         unsupported_visuals = [
             v.get("name") for v in visuals
             if not v.get("fabric", {}).get("supported", True)
@@ -280,6 +293,7 @@ class ProductionGate:
             review_items.append(f"{len(unbound_visuals)} visual(s) have unpopulated field roles")
 
         checks["visual_validation"] = visual_passed
+        checks["package_references"] = pkg_ref_result["valid"]
 
         # Overall Status Determination
         requires_review = bool(blocking_reasons or review_items)
@@ -312,6 +326,8 @@ class ProductionGate:
             "model_validation": "passed" if model_passed else "failed",
             "dax_validation": dax_val_obj,
             "visual_validation": "passed" if visual_passed else "failed",
+            "package_references": "passed" if pkg_ref_result["valid"] else "failed",
+            "generation_errors": generation_errors,
             "runtime_desktop": mapping_payload.get("runtime_desktop", "not_tested"),
             "runtime_service": mapping_payload.get("runtime_service", "not_tested"),
             "reconciliation": mapping_payload.get("reconciliation", "not_tested"),

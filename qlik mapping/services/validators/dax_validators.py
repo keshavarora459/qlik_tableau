@@ -17,6 +17,13 @@ BANNED_FUNCTIONS = {
     "ONLY": "Only() is Qlik; use SELECTEDVALUE()",
     "RANGESUM": "RangeSum is Qlik; sum values directly with +",
     "WILDMATCH": "WildMatch is Qlik; use CONTAINSSTRING() or SEARCH()",
+    "ABOVE": "Above is a Qlik row-window function; model with CALCULATE/WINDOW or OFFSET",
+    "BELOW": "Below is a Qlik row-window function; model with CALCULATE/WINDOW or OFFSET",
+    "ROWNO": "RowNo is Qlik; use RANKX or ROW_NUMBER",
+    "RECNO": "RecNo is Qlik; use ROW_NUMBER or identity column",
+    "PEEK": "Peek is Qlik script function; model in Power Query or with LOOKUPVALUE",
+    "PREVIOUS": "Previous is Qlik script function; model with OFFSET or EARLIER",
+    "PICK": "Pick is Qlik; use SWITCH or CHOOSE",
 }
 
 # Constructs that confirm Qlik syntax was not fully translated
@@ -24,6 +31,7 @@ QLIK_LEFTOVERS = [
     (re.compile(r"\{\s*<.*?>\s*\}", re.DOTALL), "Qlik set analysis {<...>} was not translated"),
     (re.compile(r"\$\(\s*[^)]*\)"), "Qlik dollar-sign expansion $(...) was not translated"),
     (re.compile(r"\bApplyMap\s*\(", re.IGNORECASE), "ApplyMap() was not translated"),
+    (re.compile(r"\b(?:Above|Below|RowNo|RecNo)\s*\(", re.IGNORECASE), "Qlik row-window function was not translated"),
 ]
 
 _EMPTY_TABLE_REF = re.compile(r"(?:'\s*'|'')\s*\[")
@@ -230,5 +238,159 @@ def validate_dax_schema_binding(
     return {
         "valid": len(errors) == 0,
         "errors": errors,
+    }
+
+
+def validate_package_references(
+    tables: List[Dict[str, Any]],
+    measures: List[Dict[str, Any]],
+    visuals: Any,
+) -> Dict[str, Any]:
+    """Validates the complete pipeline reference graph before package generation:
+    1. Every DAX column reference must exist in its referenced table.
+    2. Every measure referenced by a visual must exist in the semantic model.
+    3. Every visual field reference must resolve to an existing table/column/measure.
+    4. Reports unresolved references as generation errors instead of generating broken visuals.
+    """
+    errors: List[Dict[str, Any]] = []
+
+    # 1. Build schema index: table_name.lower() -> set of column_names.lower()
+    table_index: Dict[str, set] = {}
+    for t in tables or []:
+        if not isinstance(t, dict):
+            continue
+        tname = str(t.get("name") or t.get("table_name") or "").strip().lower()
+        if not tname:
+            continue
+        cols_set = set()
+        for col in (t.get("columns") or t.get("fields") or []):
+            if isinstance(col, dict):
+                cname = col.get("fabric_column_name") or col.get("qlik_column_name") or col.get("name")
+            else:
+                cname = str(col)
+            if cname:
+                cols_set.add(str(cname).strip().lower())
+        table_index[tname] = cols_set
+
+    # Build measure index: measure_name.lower() -> measure dict
+    measure_index: Dict[str, Dict[str, Any]] = {}
+    for m in measures or []:
+        if not isinstance(m, dict):
+            continue
+        mname = str(m.get("name") or m.get("qlik_name") or "").strip()
+        if mname:
+            measure_index[mname.lower()] = m
+
+    # 2. Validate DAX column references: Every DAX column reference must exist in its referenced table
+    dax_binding_res = validate_dax_schema_binding(measures, tables)
+    for dax_err in dax_binding_res.get("errors", []):
+        errors.append({
+            "stage": "dax_validation",
+            "type": "dax_column_reference",
+            "target": dax_err.get("measure"),
+            "error": dax_err.get("error"),
+        })
+
+    # 3. Validate visual field references
+    vis_list = []
+    if isinstance(visuals, dict):
+        vis_list = visuals.get("sheet_visuals") or []
+    elif isinstance(visuals, list):
+        vis_list = visuals
+
+    for v in vis_list:
+        if not isinstance(v, dict):
+            continue
+        v_title = v.get("title") or v.get("name") or v.get("fabric", {}).get("title") or "UnnamedVisual"
+        fabric_info = v.get("fabric") if isinstance(v.get("fabric"), dict) else {}
+        field_roles = fabric_info.get("field_roles") or []
+
+        unbound = fabric_info.get("unbound_fields") or []
+        for uf in unbound:
+            errors.append({
+                "stage": "visual_validation",
+                "type": "unbound_visual_field",
+                "target": v_title,
+                "error": f"Visual '{v_title}' has unbound field '{uf}'",
+            })
+
+        for role in field_roles:
+            if not isinstance(role, dict):
+                continue
+            field_name = role.get("field") or "UnnamedField"
+            entity = role.get("entity")
+            prop = role.get("property") or field_name
+            is_meas = role.get("is_measure", False)
+            resolved = role.get("resolved", True)
+
+            # Auto-infer entity if missing but field resolves to a known measure or table column
+            if not entity:
+                fn_lower = str(field_name).strip().lower()
+                if fn_lower in measure_index:
+                    is_meas = True
+                    entity = measure_index[fn_lower].get("table") or "_Measures"
+                else:
+                    for tname, cols in table_index.items():
+                        if fn_lower in cols or fn_lower.replace(" ", "_") in cols or fn_lower.replace("_", " ") in cols:
+                            entity = tname
+                            break
+
+            if not resolved or not entity or not prop:
+                errors.append({
+                    "stage": "visual_validation",
+                    "type": "unresolved_visual_field",
+                    "target": v_title,
+                    "error": f"Visual '{v_title}' field '{field_name}' could not be resolved to any model entity/property",
+                })
+                continue
+
+            entity_lower = str(entity).strip().lower()
+            prop_lower = str(prop).strip().lower()
+
+            if is_meas:
+                if prop_lower not in measure_index and str(field_name).strip().lower() not in measure_index:
+                    errors.append({
+                        "stage": "visual_validation",
+                        "type": "missing_measure_reference",
+                        "target": v_title,
+                        "error": f"Visual '{v_title}' references measure '{prop}' which does not exist in the semantic model",
+                    })
+                elif entity_lower not in table_index and entity_lower != "_measures":
+                    errors.append({
+                        "stage": "visual_validation",
+                        "type": "missing_table_reference",
+                        "target": v_title,
+                        "error": f"Visual '{v_title}' references measure '{prop}' on table '{entity}' which does not exist in the model",
+                    })
+            else:
+                if prop_lower in measure_index or str(field_name).strip().lower() in measure_index:
+                    # Actually a measure used in visual role
+                    continue
+                if entity_lower not in table_index:
+                    errors.append({
+                        "stage": "visual_validation",
+                        "type": "missing_table_reference",
+                        "target": v_title,
+                        "error": f"Visual '{v_title}' references table '{entity}' which does not exist in the model",
+                    })
+                else:
+                    prop_clean = prop_lower.strip("[]'\" ")
+                    table_cols_clean = {c.strip("[]'\" ") for c in table_index[entity_lower]}
+                    if (
+                        prop_clean not in table_cols_clean
+                        and prop_clean.replace(" ", "_") not in table_cols_clean
+                        and prop_clean.replace("_", " ") not in table_cols_clean
+                    ):
+                        errors.append({
+                            "stage": "visual_validation",
+                            "type": "missing_column_reference",
+                            "target": v_title,
+                            "error": f"Visual '{v_title}' references column '{prop}' which does not exist in table '{entity}'",
+                        })
+
+    return {
+        "valid": len(errors) == 0,
+        "errors": errors,
+        "error_count": len(errors),
     }
 

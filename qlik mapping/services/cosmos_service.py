@@ -69,25 +69,34 @@ async def fetch_parsing_from_cosmos(app_id: str, run_id: Optional[str] = None) -
             db_name = os.getenv("QLIK_MONGO_DB_NAME") or os.getenv("MONGO_DB_NAME", "QT2F")
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=4000)
             db = client[db_name]
-            coll = db["parsing"]
 
-            query = {}
-            if run_id and app_id:
-                query = {"$or": [{"run_id": run_id}, {"app_id": app_id}]}
-            elif run_id:
-                query = {"run_id": run_id}
-            elif app_id:
-                query = {"app_id": app_id}
+            doc = None
+            # Search parsing, parsing_results, and assessment collections
+            for coll_name in ["parsing", "parsing_results", "assessment_results", "assessment"]:
+                if coll_name in db.list_collection_names():
+                    coll = db[coll_name]
+                    # First try exact run_id
+                    if run_id:
+                        doc = coll.find_one({"$or": [{"run_id": run_id}, {"id": run_id}]}, sort=[("_id", -1)])
+                    # Then try app_id / workbook_id
+                    if not doc and app_id:
+                        doc = coll.find_one(
+                            {"$or": [{"app_id": app_id}, {"workbook_id": app_id}, {"folder_name": app_id}, {"id": app_id}]},
+                            sort=[("_id", -1)]
+                        )
+                    if doc:
+                        logger.info(f"Found metadata record in MongoDB '{db_name}.{coll_name}' for run_id={run_id}, app_id={app_id}")
+                        break
 
-            doc = coll.find_one(query, sort=[("_id", -1)])
             if doc:
                 if "_id" in doc:
                     doc["_id"] = str(doc["_id"])
-                logger.info(f"Successfully fetched parsing directly from MongoDB for run_id={run_id}, app_id={app_id}")
-                pr = doc.get("parsing_result")
+                pr = doc.get("parsing_result") or doc.get("payload") or doc.get("assessment_result")
                 if isinstance(pr, dict) and pr:
                     return _enrich_parsing_result(pr, doc)
                 return _enrich_parsing_result(doc, doc)
+            else:
+                logger.info(f"No parsing/assessment record in MongoDB '{db_name}' for run_id={run_id}, app_id={app_id}, trying HTTP API fallback...")
         except Exception as me:
             logger.warning(f"Direct MongoDB fetch failed: {me}, trying HTTP API fallback...")
 
@@ -120,12 +129,12 @@ async def fetch_parsing_from_cosmos(app_id: str, run_id: Optional[str] = None) -
                                 target = data[0] if isinstance(data[0], dict) else None
 
                             if target:
-                                pr = target.get("parsing_result")
+                                pr = target.get("parsing_result") or target.get("payload") or target.get("assessment_result")
                                 if isinstance(pr, dict) and pr:
                                     return _enrich_parsing_result(pr, target)
                                 return _enrich_parsing_result(target, target)
                         elif isinstance(data, dict) and not _is_not_found_body(data):
-                            pr = data.get("parsing_result")
+                            pr = data.get("parsing_result") or data.get("payload") or data.get("assessment_result")
                             if isinstance(pr, dict) and pr:
                                 return _enrich_parsing_result(pr, data)
                             return _enrich_parsing_result(data, data)
@@ -146,25 +155,31 @@ async def fetch_mapping_from_cosmos(app_id: str, run_id: Optional[str] = None) -
             db_name = os.getenv("QLIK_MONGO_DB_NAME") or os.getenv("MONGO_DB_NAME", "QT2F")
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=4000)
             db = client[db_name]
-            coll = db["mapping"]
 
-            query = {}
-            if run_id and app_id:
-                query = {"$or": [{"run_id": run_id}, {"app_id": app_id}]}
-            elif run_id:
-                query = {"run_id": run_id}
-            elif app_id:
-                query = {"app_id": app_id}
+            doc = None
+            for coll_name in ["mapping", "mapping_results"]:
+                if coll_name in db.list_collection_names():
+                    coll = db[coll_name]
+                    if run_id:
+                        doc = coll.find_one({"$or": [{"run_id": run_id}, {"id": run_id}]}, sort=[("_id", -1)])
+                    if not doc and app_id:
+                        doc = coll.find_one(
+                            {"$or": [{"app_id": app_id}, {"workbook_id": app_id}, {"folder_name": app_id}, {"id": app_id}]},
+                            sort=[("_id", -1)]
+                        )
+                    if doc:
+                        break
 
-            doc = coll.find_one(query, sort=[("_id", -1)])
             if doc:
                 if "_id" in doc:
                     doc["_id"] = str(doc["_id"])
                 logger.info(f"Successfully fetched mapping directly from MongoDB for run_id={run_id}, app_id={app_id}")
-                mr = doc.get("mapping_result")
+                mr = doc.get("mapping_result") or doc.get("payload")
                 if isinstance(mr, dict) and mr:
                     return mr
                 return doc
+            else:
+                logger.info(f"No mapping record in MongoDB '{db_name}' for run_id={run_id}, app_id={app_id}, trying HTTP API fallback...")
         except Exception as me:
             logger.warning(f"Direct MongoDB fetch for mapping failed: {me}, trying HTTP API fallback...")
 
@@ -197,12 +212,12 @@ async def fetch_mapping_from_cosmos(app_id: str, run_id: Optional[str] = None) -
                                 target = data[0] if isinstance(data[0], dict) else None
 
                             if target:
-                                mapping_result = target.get("mapping_result")
+                                mapping_result = target.get("mapping_result") or target.get("payload")
                                 if isinstance(mapping_result, dict) and mapping_result:
                                     return mapping_result
                                 return target
                         elif isinstance(data, dict) and not _is_not_found_body(data):
-                            return data.get("mapping_result") or data
+                            return data.get("mapping_result") or data.get("payload") or data
             except Exception as e:
                 logger.warning(f"Failed to fetch mapping from {url}: {e}")
 
@@ -217,7 +232,48 @@ async def save_mapping_to_cosmos(
     mapping_result: Dict[str, Any]
 ) -> Dict[str, str]:
     """Save converted mapping result back to MongoDB directly and via HTTP API."""
-    if not app_id and not run_id:
+    _m_res = mapping_result if isinstance(mapping_result, dict) else {}
+    _orig_req = _m_res.get("original_request_payload", {})
+    _wm = _m_res.get("workbook_metadata", {}) if isinstance(_m_res.get("workbook_metadata"), dict) else {}
+
+    resolved_app_id = (
+        app_id 
+        or _wm.get("app_id") 
+        or _wm.get("workbook_id") 
+        or _m_res.get("app_id") 
+        or _orig_req.get("app_id") 
+        or ""
+    )
+    resolved_run_id = (
+        run_id 
+        or _wm.get("run_id") 
+        or _m_res.get("run_id") 
+        or _orig_req.get("run_id") 
+        or ""
+    )
+    resolved_app_name = (
+        app_name 
+        or _wm.get("app_name") 
+        or _wm.get("name") 
+        or _m_res.get("app_name") 
+        or _orig_req.get("app_name") 
+        or ""
+    )
+    resolved_space_id = (
+        space_id 
+        or _wm.get("space_id") 
+        or _m_res.get("space_id") 
+        or _orig_req.get("space_id") 
+        or ""
+    )
+    workspace_id = (
+        _wm.get("workspace_id") 
+        or _m_res.get("workspace_id") 
+        or _orig_req.get("workspace_id") 
+        or "personal"
+    )
+
+    if not resolved_app_id and not resolved_run_id:
         return {"status": "skipped", "message": "No app_id or run_id provided"}
 
     saved_directly = False
@@ -231,37 +287,36 @@ async def save_mapping_to_cosmos(
             db_name = os.getenv("QLIK_MONGO_DB_NAME") or os.getenv("MONGO_DB_NAME", "QT2F")
             client = MongoClient(mongo_uri, serverSelectionTimeoutMS=4000)
             db = client[db_name]
-            coll = db["mapping"]
 
-            # Save all MAPPING results in a subfolder (nested object) and rest outside
             doc_to_save = {
-                "mapping_result": mapping_result if isinstance(mapping_result, dict) else {}
+                "mapping_result": _m_res,
+                "app_id": resolved_app_id,
+                "workbook_id": resolved_app_id,
+                "space_id": resolved_space_id,
+                "app_name": resolved_app_name,
+                "run_id": resolved_run_id,
+                "workspace_id": workspace_id,
+                "folder_name": resolved_app_id or resolved_app_name,
+                "updated_at": datetime.datetime.utcnow().isoformat()
             }
-            
-            _m_res = doc_to_save["mapping_result"]
-            _orig_req = _m_res.get("original_request_payload", {})
-            
-            doc_to_save["app_id"] = app_id or _m_res.get("app_id", "") or _orig_req.get("app_id", "")
-            doc_to_save["space_id"] = space_id or _m_res.get("space_id", "") or _orig_req.get("space_id", "")
-            doc_to_save["app_name"] = app_name or _m_res.get("app_name", "") or _orig_req.get("app_name", "")
-            doc_to_save["run_id"] = run_id or _m_res.get("run_id", "") or _orig_req.get("run_id", "")
-            doc_to_save["workspace_id"] = _m_res.get("workspace_id", "") or _orig_req.get("workspace_id", "")
-            doc_to_save["folder_name"] = _m_res.get("folder_name", "") or _orig_req.get("folder_name", "")
-            doc_to_save["updated_at"] = datetime.datetime.utcnow().isoformat()
 
             query = {}
-            if run_id:
-                query = {"run_id": run_id}
-            elif app_id:
-                query = {"app_id": app_id}
+            if resolved_run_id:
+                query = {"run_id": resolved_run_id}
+            elif resolved_app_id:
+                query = {"app_id": resolved_app_id}
 
-            if query:
-                coll.replace_one(query, doc_to_save, upsert=True)
-            else:
-                coll.insert_one(doc_to_save)
+            # Upsert into both 'mapping' and 'mapping_results' so any client or UI finds the data
+            for col_name in ["mapping", "mapping_results"]:
+                coll = db[col_name]
+                if query:
+                    coll.replace_one(query, doc_to_save, upsert=True)
+                else:
+                    coll.insert_one(doc_to_save)
 
-            logger.info(f"Successfully saved mapping directly to MongoDB collection 'mapping' for run_id={run_id}, app_id={app_id}")
             saved_directly = True
+            logger.info(f"Successfully saved mapping directly to MongoDB collections 'mapping' and 'mapping_results' in '{db_name}' for run_id={resolved_run_id}, app_id={resolved_app_id}")
+            return {"status": "success", "message": f"Mapping result saved directly to MongoDB '{db_name}.mapping' and '{db_name}.mapping_results'"}
         except Exception as me:
             logger.warning(f"Direct MongoDB save failed: {me}")
 
@@ -270,14 +325,18 @@ async def save_mapping_to_cosmos(
     for base in _get_base_apis():
         try:
             url = f"{base}/mapping"
-            payload = {}
-            if isinstance(mapping_result, dict):
-                payload.update(mapping_result)
+            _m_res = mapping_result if isinstance(mapping_result, dict) else {}
+            _orig_req = _m_res.get("original_request_payload", {})
             
-            payload["app_id"] = app_id or payload.get("app_id", "")
-            payload["space_id"] = space_id or payload.get("space_id", "")
-            payload["app_name"] = app_name or payload.get("app_name", "")
-            payload["run_id"] = run_id or payload.get("run_id", "")
+            payload = {
+                "app_id": app_id or _m_res.get("app_id", "") or _orig_req.get("app_id", ""),
+                "space_id": space_id or _m_res.get("space_id", "") or _orig_req.get("space_id", ""),
+                "app_name": app_name or _m_res.get("app_name", "") or _orig_req.get("app_name", ""),
+                "run_id": run_id or _m_res.get("run_id", "") or _orig_req.get("run_id", ""),
+                "workspace_id": _m_res.get("workspace_id", "") or _orig_req.get("workspace_id", "") or "personal",
+                "folder_name": app_id or "",
+                "mapping_result": _m_res
+            }
             token = request_token_ctx.get()
             headers = {'Content-Type': 'application/json'}
             if token:
@@ -286,7 +345,8 @@ async def save_mapping_to_cosmos(
             async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.post(url, json=payload, timeout=30) as response:
                     if response.status in (200, 201):
-                        return {"status": "success", "message": "Mapping result saved"}
+                        logger.info(f"Successfully saved mapping to AWS API {url} for run_id={run_id}")
+                        return {"status": "success", "message": f"Mapping result saved to AWS API ({base})"}
         except Exception as e:
             last_error = e
             logger.warning(f"HTTP save mapping to {base} warning: {e}")

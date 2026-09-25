@@ -6,7 +6,7 @@ imports ConfidenceEvaluator (that import would be circular).
 """
 
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 # A bare identifier: not preceded by [ or ' and not a function call.
 IDENTIFIER = re.compile(r"(?<![\[\w'])([A-Za-z_]\w*)\b(?!\s*\()")
@@ -38,10 +38,31 @@ DAX_FUNCTIONS_AND_KEYWORDS = RESERVED | {
 }
 
 
-def build_column_index(known_tables: List[Dict[str, Any]]) -> Dict[str, str]:
-    """column name -> owning table, first table wins."""
+def build_column_index(
+    known_tables: List[Dict[str, Any]],
+    preferred_tables: Optional[List[str]] = None,
+) -> Dict[str, str]:
+    """column name -> owning table, first table wins.
+
+    If preferred_tables is provided, tables in preferred_tables take
+    precedence so their columns are indexed before other tables.
+    """
     index: Dict[str, str] = {}
-    for table in known_tables or []:
+    if not known_tables:
+        return index
+
+    pref_list = [str(p).strip().lower() for p in (preferred_tables or []) if p and str(p).strip()]
+
+    def sort_key(t: Dict[str, Any]) -> int:
+        if not isinstance(t, dict):
+            return 999999
+        tname = str(t.get("name") or t.get("table_name") or "").strip().lower()
+        if tname in pref_list:
+            return pref_list.index(tname)
+        return len(pref_list) + 1
+
+    tables_to_index = sorted(known_tables, key=sort_key) if pref_list else known_tables
+    for table in tables_to_index:
         if not isinstance(table, dict):
             continue
         table_name = table.get("name") or table.get("table_name")

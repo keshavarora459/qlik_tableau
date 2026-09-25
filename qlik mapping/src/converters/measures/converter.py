@@ -23,7 +23,7 @@ STAGE = "measures"
 
 # Simple standalone aggregations without set analysis or complex logic
 _SIMPLE_PATTERN = re.compile(
-    r"^\s*(?:sum|avg|average|count|min|max|distinctcount)\s*\(\s*(?:distinct\s+)?[a-zA-Z0-9_\[\]\s\-\.]+\s*\)\s*$",
+    r"^\s*(?:sum|avg|average|count|min|max|distinctcount)\s*\(\s*(?:distinct\s+)?['\"\[]?[a-zA-Z0-9_\s\-\.]+['\"\]]?\s*\)\s*$",
     re.IGNORECASE,
 )
 
@@ -39,20 +39,31 @@ def classify_measure(qlik_expr: str) -> str:
     if not qlik_expr or not str(qlik_expr).strip():
         return "SIMPLE"
 
-    expr = str(qlik_expr).strip().lower()
+    expr = str(qlik_expr).strip()
+    # Strip comments
+    expr = re.sub(r'/\*.*?\*/', '', expr, flags=re.DOTALL)
+    expr = re.sub(r'//.*', '', expr).strip()
+    if expr.startswith("="):
+        expr = expr[1:].strip()
+    # Strip Num(...) wrapper
+    num_match = re.match(r"^num\s*\((.*)(?:,[^,)]*){1,2}\)$", expr, flags=re.IGNORECASE | re.DOTALL)
+    if num_match:
+        expr = num_match.group(1).strip()
 
-    if any(kw in expr for kw in _COMPLEX_KEYWORDS):
+    expr_lower = expr.lower()
+
+    if any(kw in expr_lower for kw in _COMPLEX_KEYWORDS):
         return "COMPLEX"
 
-    if _SIMPLE_PATTERN.match(expr):
+    if _SIMPLE_PATTERN.match(expr_lower):
         return "SIMPLE"
 
     # Simple arithmetic between single aggregations: e.g. Sum(A) / Sum(B)
-    if "/" in expr or "*" in expr or "+" in expr or "-" in expr:
-        if not any(kw in expr for kw in _COMPLEX_KEYWORDS) and "{" not in expr:
+    if "/" in expr_lower or "*" in expr_lower or "+" in expr_lower or "-" in expr_lower:
+        if not any(kw in expr_lower for kw in _COMPLEX_KEYWORDS) and "{" not in expr_lower:
             return "SIMPLE"
 
-    if "if(" in expr or "wildmatch(" in expr:
+    if "if(" in expr_lower or "wildmatch(" in expr_lower:
         return "MODERATE"
 
     return "MODERATE"
@@ -104,7 +115,9 @@ class MeasureConverter:
         self,
         measure: Dict[str, Any],
         tables: List[Dict[str, Any]],
-        schema_context: str,
+        schema_context: str = "",
+        relationships: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Return `measure` with its DAX upgraded when the model improves it."""
         usage = llm_usage.current()
@@ -115,6 +128,24 @@ class MeasureConverter:
 
         if not qlik_expr:
             return measure
+
+        baseline_val = measure.get("validation") or {}
+        baseline_is_valid = bool(
+            baseline and baseline != "BLANK()" and baseline != "-- SKIPPED"
+            and baseline_val.get("passed", False)
+            and not measure.get("unresolved_columns")
+            and not measure.get("unconverted_qlik_functions")
+            and not measure.get("unconverted_qlik_syntax")
+        )
+        if not baseline_is_valid and baseline and baseline != "BLANK()":
+            ok, _ = dax_guard.validate(baseline, tables, is_measure=True)
+            if (
+                ok
+                and not measure.get("unresolved_columns")
+                and not measure.get("unconverted_qlik_functions")
+                and not measure.get("unconverted_qlik_syntax")
+            ):
+                baseline_is_valid = True
 
         # Construct minimal scoped schema context for this measure
         ref_tables = _extract_referenced_tables(qlik_expr, tables)
@@ -139,8 +170,17 @@ class MeasureConverter:
                 "LLM measure conversion failed for '%s' (%s); keeping regex draft.",
                 name, exc,
             )
-            measure["conversion_method"] = "regex_fallback"
             measure["llm_status"] = "rate_limited" if "rate" in str(exc).lower() else "failed"
+            if baseline_is_valid:
+                measure["conversion_method"] = "deterministic_rule"
+                measure["conversion_status"] = "converted"
+                measure["status"] = "converted"
+            else:
+                measure["conversion_method"] = "regex_fallback"
+                measure["conversion_status"] = "failed_to_convert"
+                measure["status"] = "failed to convert"
+                measure["confidence_score"] = 0
+                measure["review_notes"] = f"conversion failed: {exc}"
             return measure
 
         chosen, used_llm, problems = dax_guard.choose(
@@ -154,36 +194,75 @@ class MeasureConverter:
                     "Rejected LLM DAX for measure '%s' (%s); kept regex draft.",
                     name, "; ".join(problems[:3]),
                 )
-            measure["conversion_method"] = "regex_fallback"
+            if baseline_is_valid:
+                measure["conversion_method"] = "deterministic_rule"
+                measure["conversion_status"] = "converted"
+                measure["status"] = "converted"
+            else:
+                measure["conversion_method"] = "regex_fallback"
+                measure["conversion_status"] = "failed_to_convert"
+                measure["status"] = "failed to convert"
+                measure["confidence_score"] = 0
+                prob_desc = "; ".join(problems) if problems else "no usable model response"
+                measure["review_notes"] = f"conversion failed: {prob_desc}"
             return measure
 
         if chosen.strip() == baseline.strip():
-            measure["conversion_method"] = "deterministic_rule"
+            if baseline_is_valid:
+                measure["conversion_method"] = "deterministic_rule"
+                measure["conversion_status"] = "converted"
+                measure["status"] = "converted"
             return measure
 
-        usage.record_accepted(STAGE)
-        measure["dax_expression"] = chosen
-        measure["baseline_dax_expression"] = baseline
-        measure["conversion_method"] = "llm_refined"
-        measure["llm_status"] = "success"
-        if isinstance(fabric, dict):
-            fabric["dax_expression"] = chosen
-            tmdl = fabric.get("tmdl")
-            if isinstance(tmdl, str) and baseline and baseline in tmdl:
-                fabric["tmdl"] = tmdl.replace(baseline, chosen)
-            else:
-                fabric["tmdl"] = f"measure '{name}' = {chosen}"
-
-        confidence = measure.get("confidence")
-        if isinstance(confidence, dict):
-            confidence["rationale"] = (
-                (confidence.get("rationale") or "").strip()
-                + " Refined by LLM against the resolved schema."
-            ).strip()
-            confidence["llm_refined"] = True
-
         from services.validators.dax_validators import run_dax_validators
-        measure["validation"] = run_dax_validators(fabric, tables=tables)
+        temp_fabric = dict(fabric)
+        temp_fabric["dax_expression"] = chosen
+        llm_val = run_dax_validators(temp_fabric, tables=tables)
+
+        if llm_val.get("passed", False):
+            usage.record_accepted(STAGE)
+            measure["dax_expression"] = chosen
+            measure["baseline_dax_expression"] = baseline
+            measure["conversion_method"] = "llm_refined"
+            measure["conversion_status"] = "converted"
+            measure["status"] = "converted"
+            measure["llm_status"] = "success"
+            measure["unresolved_columns"] = []
+            measure["unconverted_qlik_functions"] = []
+            measure["unconverted_qlik_syntax"] = []
+            if isinstance(fabric, dict):
+                fabric["dax_expression"] = chosen
+                tmdl = fabric.get("tmdl")
+                if isinstance(tmdl, str) and baseline and baseline in tmdl:
+                    fabric["tmdl"] = tmdl.replace(baseline, chosen)
+                else:
+                    fabric["tmdl"] = f"measure '{name}' = {chosen}"
+
+            confidence = measure.get("confidence")
+            if isinstance(confidence, dict):
+                confidence["rationale"] = (
+                    (confidence.get("rationale") or "").strip()
+                    + " Refined by LLM against the resolved schema."
+                ).strip()
+                confidence["llm_refined"] = True
+                confidence["score"] = max(0.85, confidence.get("score", 0.85))
+                confidence["score_out_of_100"] = int(round(confidence["score"] * 100))
+                confidence["band"] = "high"
+                confidence["requires_review"] = False
+            measure["confidence_score"] = confidence.get("score_out_of_100", 90) if isinstance(confidence, dict) else 90
+            measure["review_notes"] = ""
+            measure["validation"] = llm_val
+        else:
+            if baseline_is_valid:
+                measure["conversion_method"] = "deterministic_rule"
+                measure["conversion_status"] = "converted"
+                measure["status"] = "converted"
+            else:
+                measure["conversion_method"] = "regex_fallback"
+                measure["conversion_status"] = "failed_to_convert"
+                measure["status"] = "failed to convert"
+                measure["confidence_score"] = 0
+                measure["review_notes"] = f"conversion failed: {'; '.join(f.get('message', '') for f in llm_val.get('failures', []))}"
         return measure
 
     async def refine_all(
@@ -210,14 +289,37 @@ class MeasureConverter:
             complexity = classify_measure(qlik)
             m["complexity"] = complexity
 
-            # 1. SIMPLE measures: deterministic conversion is complete
-            if complexity == "SIMPLE":
+            val = m.get("validation") or {}
+            val_passed = val.get("passed", False)
+            has_valid_baseline = bool(
+                baseline and baseline != "BLANK()" and baseline != "-- SKIPPED"
+                and val_passed
+                and not m.get("unresolved_columns")
+                and not m.get("unconverted_qlik_functions")
+                and not m.get("unconverted_qlik_syntax")
+            )
+
+            # 1. Deterministic conversion succeeded and validated -> NEVER call LLM
+            if has_valid_baseline or m.get("conversion_status") == "converted":
                 usage.record_deterministic(STAGE)
                 m["conversion_method"] = "deterministic_rule"
+                m["conversion_status"] = "converted"
+                m["status"] = "converted"
                 m["llm_status"] = "not_needed"
                 continue
 
-            # 2. MODERATE / COMPLEX measures: validate deterministic baseline first
+            # 2. SIMPLE measures: deterministic conversion is complete
+            if complexity == "SIMPLE":
+                is_valid, _ = dax_guard.validate(baseline, tables, is_measure=True) if baseline else (False, [])
+                if is_valid and baseline and baseline != "BLANK()":
+                    usage.record_deterministic(STAGE)
+                    m["conversion_method"] = "deterministic_rule"
+                    m["conversion_status"] = "converted"
+                    m["status"] = "converted"
+                    m["llm_status"] = "not_needed"
+                    continue
+
+            # 3. MODERATE / COMPLEX measures: validate deterministic baseline first
             if baseline and baseline != "BLANK()":
                 is_valid, _ = dax_guard.validate(baseline, tables, is_measure=True)
                 conf = m.get("confidence") or {}
@@ -225,10 +327,12 @@ class MeasureConverter:
                 if is_valid and conf_score >= 0.85 and not conf.get("requires_review"):
                     usage.record_deterministic(STAGE)
                     m["conversion_method"] = "deterministic_rule"
+                    m["conversion_status"] = "converted"
+                    m["status"] = "converted"
                     m["llm_status"] = "not_needed"
                     continue
 
-            # 3. Only measures with missing/invalid DAX or low confidence need LLM
+            # 4. Only measures with missing/invalid DAX or low confidence need LLM
             if Config.USE_LLM_MEASURES:
                 candidates.append(m)
             else:

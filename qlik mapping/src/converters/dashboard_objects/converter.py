@@ -425,6 +425,10 @@ class DashboardObjectConverter(BaseConverter):
                     if m_n:
                         meas_lookup[m_n.lower()] = km
                         meas_lookup[re.sub(r"[^a-zA-Z0-9_]", "", m_n.lower())] = km
+                    expr = km.get("expression") or km.get("qlik_expression") or ""
+                    if expr:
+                        meas_lookup[expr.lower().strip()] = km
+                        meas_lookup[re.sub(r"\s+", "", expr.lower().strip())] = km
 
             col_lookup = {}
             for kt in known_tables:
@@ -488,13 +492,19 @@ class DashboardObjectConverter(BaseConverter):
                     if m_name.lower() in meas_lookup:
                         matched_m = meas_lookup[m_name.lower()]
                         fabric_info = matched_m.get("fabric") or {}
-                        entity = fabric_info.get("table") or (matched_m.get("tables", [None])[0] if matched_m.get("tables") else None)
+                        entity = fabric_info.get("table") or matched_m.get("table") or (matched_m.get("tables", [None])[0] if matched_m.get("tables") else None)
                         prop = matched_m.get("name") or m_name
                         agg = "None"
                     elif m_clean in meas_lookup:
                         matched_m = meas_lookup[m_clean]
                         fabric_info = matched_m.get("fabric") or {}
-                        entity = fabric_info.get("table") or (matched_m.get("tables", [None])[0] if matched_m.get("tables") else None)
+                        entity = fabric_info.get("table") or matched_m.get("table") or (matched_m.get("tables", [None])[0] if matched_m.get("tables") else None)
+                        prop = matched_m.get("name") or m_name
+                        agg = "None"
+                    elif re.sub(r"\s+", "", m_name.lower()) in meas_lookup:
+                        matched_m = meas_lookup[re.sub(r"\s+", "", m_name.lower())]
+                        fabric_info = matched_m.get("fabric") or {}
+                        entity = fabric_info.get("table") or matched_m.get("table") or (matched_m.get("tables", [None])[0] if matched_m.get("tables") else None)
                         prop = matched_m.get("name") or m_name
                         agg = "None"
                     elif m_name.lower() in col_lookup:
@@ -511,9 +521,10 @@ class DashboardObjectConverter(BaseConverter):
                     else:
                         role = "Y"
 
+                    resolved = bool(entity) and bool(prop)
                     det_roles.append({
                         "field": str(m_name), "role": role, "entity": entity, "property": str(prop),
-                        "is_measure": is_meas, "aggregation": agg, "resolved": True
+                        "is_measure": is_meas, "aggregation": agg, "resolved": resolved
                     })
 
             llm_response = {

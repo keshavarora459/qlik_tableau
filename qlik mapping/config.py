@@ -73,8 +73,8 @@ class Config:
     USE_LLM_MQUERY = os.getenv("USE_LLM_MQUERY", "true").lower() == "true"
 
     # Character budget for rules block injected into system prompt
-    LLM_RULES_CHAR_BUDGET = int(os.getenv("LLM_RULES_CHAR_BUDGET", "3000"))
-    LLM_SYSTEM_PROMPT_LIMIT = int(os.getenv("LLM_SYSTEM_PROMPT_LIMIT", "6000"))
+    LLM_RULES_CHAR_BUDGET = int(os.getenv("LLM_RULES_CHAR_BUDGET", "8000"))
+    LLM_SYSTEM_PROMPT_LIMIT = int(os.getenv("LLM_SYSTEM_PROMPT_LIMIT", "12000"))
     LLM_SCHEMA_COLUMN_LIMIT = int(os.getenv("LLM_SCHEMA_COLUMN_LIMIT", "20"))
 
     _validated: bool = False
@@ -87,8 +87,8 @@ class Config:
         logger.info("Validating LLM configuration")
         if not Config.GROQ_API_KEY:
             logger.warning("GROQ_API_KEY is not set in environment. Deterministic mappings will run; LLM calls will require key.")
-        if not COSMOS_DB_API:
-            logger.warning("No MongoDB API base URL configured in environment (COSMOS_BASE_API / MONGO_API_URL / BASE_API_URL)")
+        if not COSMOS_DB_API and not os.getenv("MONGO_URI"):
+            logger.warning("No MongoDB connection configured in environment (MONGO_URI / COSMOS_BASE_API / BASE_API_URL)")
         logger.info("Using Groq API provider with model %s (max_concurrency=%d, max_input_tokens=%d, max_output_tokens=%d)",
                     Config.GROQ_MODEL, Config.LLM_MAX_CONCURRENCY, Config.LLM_MAX_INPUT_TOKENS, Config.LLM_MAX_OUTPUT_TOKENS)
 
